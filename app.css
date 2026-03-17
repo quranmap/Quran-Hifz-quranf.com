@@ -565,15 +565,16 @@ html.rotate-phone body{
 .statusbar{
   position:absolute;
   width: calc(var(--stage-w) * 0.9864583);
-  height: calc(var(--stage-h) * 0.1129630);
+  height: calc(var(--stage-h) * 0.1388889);
   left:50%;
   transform:translateX(-50%);
-  top: calc((var(--stage-h) * 0.0564815) - ((var(--stage-h) * 0.1129630) / 2));
+
+  top: 0;
+
   border:1px solid var(--color-line);
   border-bottom-left-radius: calc(var(--stage-h) * 0.010);
   border-bottom-right-radius: calc(var(--stage-h) * 0.010);
   background: var(--color-bg-stage);
-
 }
 
 /* ===== SuraPlay Progress (Track + Fill) ===== */
@@ -582,27 +583,22 @@ html.rotate-phone body{
   left:0;
   right:0;
   bottom:0;
-  height:10%;
-  /* Track (dezenter als fill) */
+  height:24%;
+  min-height: calc(var(--u12h) * 1.6);
   background: var(--c-w-06);
   overflow: hidden;
 }
 
 /* Fill bleibt weiter #progress, damit bestehendes JS nicht kaputt geht */
-/* Fill bleibt weiter #progress, damit bestehendes JS nicht kaputt geht */
 .progress{
   position:absolute;
   left:0;
   bottom:0;
-
-  /* dünner “Strich” statt Block */
   height: 100%;
   width:100%;
-
-  /* blau + in light/dark sichtbar */
-  background: var(--c-a-95);
-  border-radius: var(--round-pill);
-  opacity: 0.70;
+  background: var(--c-a-55);
+  border-radius: 0;
+  opacity: 0.18;
   z-index: 7050;
   transform-origin: left center;
   transform: scaleX(0);
@@ -622,88 +618,329 @@ html.rotate-phone body{
   100% { transform: translateX(60%); }
 }
 
-/* ===== SuraPlay Ticks ===== */
+/* ===== SuraPlay Ticks / Hifz Columns ===== */
 .suraProgTicks{
   position:absolute;
   inset:0;
   pointer-events: auto;
   z-index: 7100;
+  --sura-tick-count: 1;
 }
 
-/* jeder Tick ist ein Button (klickbar), aber nur als dünner Strich sichtbar */
 .suraTick{
   position:absolute;
-  top:12%;
-  bottom:12%;
-
-  /* ✅ große Klickfläche (12px @ 1280) */
-  width: var(--u12w);
-  transform: translateX(calc(var(--u12w) / -2));
-
-  /* ✅ unsichtbare Fläche */
+  top:0;
+  bottom:0;
+  width: calc(100% / var(--sura-tick-count));
+  transform: translateX(-50%);
   background: transparent;
-
   border: 0;
   padding: 0;
   margin: 0;
   cursor: pointer;
+  overflow: hidden;
+  isolation: isolate;
 }
 
-/* ✅ sichtbarer Strich (2px @ 1280) */
+/* ✅ grüne Flüssigkeit jetzt voll opak + massiver Battery-Glow */
+/* ✅ Basis: ohne Fortschritt KEIN grüner Strich */
+.suraTick::before{
+  content:"";
+  position:absolute;
+  left:0;
+  right:0;
+  bottom:0;
+  height: var(--tick-progress-pct, 0%);
+  z-index: 2;
+  opacity: 0;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(var(--rgb-ok),0.98) 0%,
+      rgba(var(--rgb-ok),0.78) 42%,
+      rgba(var(--rgb-ok),0.52) 100%
+    );
+  border-top: 0;
+  box-shadow: none;
+  pointer-events:none;
+}
+
+/* ✅ glatter dunkler→heller Verlauf, aber ohne Deckel/Top-Kappe */
+.suraTick.is-hifz-progress::before,
+.suraTick.is-hifz-mastered::before{
+  opacity: 1;
+  border-top: 0;
+  box-shadow:
+    inset 0 calc(var(--u8h) * 0.55) calc(var(--u12h) * 0.90) rgba(var(--rgb-white),0.14),
+    inset 0 calc(var(--u8h) * -0.40) calc(var(--u12h) * 0.90) rgba(var(--rgb-black),0.18),
+    0 0 calc(var(--glow-soft) * 0.16) rgba(var(--rgb-ok),0.18);
+}
+
+.suraTick.is-hifz-mastered::before{
+  background:
+    linear-gradient(
+      180deg,
+      rgba(var(--rgb-ok),1.00) 0%,
+      rgba(var(--rgb-ok),0.84) 42%,
+      rgba(var(--rgb-ok),0.58) 100%
+    );
+  border-top: 0;
+  box-shadow:
+    inset 0 calc(var(--u8h) * 0.65) calc(var(--u12h) * 0.95) rgba(var(--rgb-white),0.16),
+    inset 0 calc(var(--u8h) * -0.45) calc(var(--u12h) * 0.95) rgba(var(--rgb-black),0.20),
+    0 0 calc(var(--glow-soft) * 0.20) rgba(var(--rgb-ok),0.22);
+}
+/* ✅ Normalmodus: dünne Linien bleiben außerhalb von Hifz */
 .suraTick::after{
+  content:"";
+  position:absolute;
+  top:8%;
+  bottom:8%;
+  left:50%;
+  width: 1px;
+  transform: translateX(-0.5px);
+  background: rgba(255,255,255,0.26);
+  pointer-events:none;
+}
+
+/* Hover stärker */
+.suraTick:hover::after{
+  background: rgba(255,255,255,0.58);
+}
+
+/* aktuelle Ayah (normaler Modus) */
+.suraTick.is-active::after{
+  background: var(--c-a-85);
+}
+.suraTick.is-active{
+  background: var(--c-a-10);
+}
+
+/* normaler Range-Start/Ende */
+.suraTick.is-range-start::after,
+.suraTick.is-range-end::after{
+  background: var(--c-a-95);
+  box-shadow:
+    0 0 calc(var(--glow-ring) * 1.15) var(--c-a-45),
+    0 0 calc(var(--glow-soft) * 0.55) var(--c-a-25);
+}
+
+.suraTick:hover{
+  background: var(--c-w-12);
+}
+
+.suraTick.is-hifz-bad{
+  background: var(--c-d-18);
+  box-shadow:
+    inset 0 calc(var(--u2h) * 1.15) 0 rgba(var(--rgb-danger),0.95);
+}
+
+.suraTick.is-hifz-bad::after{
+  background: rgba(var(--rgb-danger),0.90);
+}
+
+.suraTick.is-hifz-bad:hover{
+  background: var(--c-d-25);
+}
+
+.statusbar.is-hifz-range-ui .suraTick.is-hifz-bad{
+  background: rgba(var(--rgb-danger),0.10);
+  box-shadow:
+    inset 0 calc(var(--u2h) * 1.15) 0 rgba(var(--rgb-danger),0.95);
+}
+
+html[data-theme="light"] .suraTick.is-hifz-bad{
+  background: rgba(var(--rgb-danger),0.10);
+  box-shadow:
+    inset 0 calc(var(--u2h) * 1.15) 0 rgba(var(--rgb-danger),0.95);
+}
+
+html[data-theme="light"] .suraTick.is-hifz-bad::after{
+  background: rgba(var(--rgb-danger),0.82);
+}
+
+/* =========================
+   ✅ HIFZ RANGE UI (Train + Test):
+   - Kästchen statt Linien
+   - keine blauen Balken
+   - orange aktuelle Ayah
+   ========================= */
+.statusbar.is-hifz-range-ui .suraProg{
+  background: var(--c-w-04);
+  border-top: var(--u1h) solid rgba(var(--rgb-white),0.12);
+  border-bottom: var(--u1h) solid rgba(var(--rgb-white),0.12);
+}
+
+.statusbar.is-hifz-range-ui .suraProg::after{
+  content:"";
+  position:absolute;
+  top:0;
+  right:0;
+  bottom:0;
+  width: var(--u1w);
+  background: rgba(var(--rgb-white),0.12);
+  pointer-events:none;
+  z-index:7101;
+}
+
+/* ✅ beide blauen Fortschrittsbalken komplett aus */
+.statusbar.is-hifz-range-ui #progress,
+.statusbar.is-hifz-range-ui #scrollProgress{
+  display:none !important;
+  opacity:0 !important;
+}
+
+.statusbar.is-hifz-range-ui .suraTick{
+  background: rgba(var(--rgb-white),0.020);
+  box-shadow: none;
+}
+
+.statusbar.is-hifz-range-ui .suraTick:hover{
+  background: var(--c-w-12);
+}
+
+/* ✅ WICHTIG:
+   Der leere Kasten bleibt grau.
+   KEIN extra grüner Innenrand auf dem leeren Bereich. */
+.statusbar.is-hifz-range-ui .suraTick.is-hifz-progress,
+.statusbar.is-hifz-range-ui .suraTick.is-hifz-mastered{
+  box-shadow: none;
+}
+
+/* ✅ mastered ebenfalls ohne grünen Kastenrand */
+.statusbar.is-hifz-range-ui .suraTick.is-hifz-mastered{
+  box-shadow:
+    inset var(--u1w) 0 0 rgba(var(--rgb-white),0.065);
+}
+
+/* ✅ keine grauen Linien mehr in Train/Test */
+.statusbar.is-hifz-range-ui .suraTick::after{
+  top:0;
+  bottom:0;
+  width:0;
+  transform:none;
+  background:transparent;
+  box-shadow:none;
+  z-index: 3;
+}
+
+/* ✅ Range-Markierungen jetzt in BEIDEN Modi sichtbar: Train + Test */
+.statusbar.is-hifz-range-ui .suraTick.is-range-start::after,
+.statusbar.is-hifz-range-ui .suraTick.is-range-end::after,
+.statusbar.is-hifz-range-ui .suraTick.is-active::after{
   content:"";
   position:absolute;
   top:0;
   bottom:0;
   left:50%;
-  width: var(--u2w);
-  transform: translateX(calc(var(--u2w) / -2));
-  background: rgba(255,255,255,0.25);
+  width:min(calc(100% - var(--u2w)), max(var(--u2w), calc(100% * 0.18)));
+  transform:translateX(-50%);
+  border-radius:var(--round-pill);
 }
 
-/* Hover stärker (wirkt auf den Strich) */
-.suraTick:hover::after{
-  background: rgba(255,255,255,0.55);
-}
-
-/* Active stärker */
-.suraTick.is-active::after{
-  background: var(--c-a-85);
-}
-
-/* ✅ Lightmode: Strichfarbe bleibt sichtbar */
-html[data-theme="light"] .suraTick::after{
-  background: rgba(var(--rgb-ink),0.22);
-}
-html[data-theme="light"] .suraTick:hover::after{
-  background: rgba(var(--rgb-ink),0.45);
-}
-
-/* ✅ Hover-Background: NICHT schwarz im Lightmode */
-.suraTick:hover{
-  background: var(--c-w-12);
-}
-html[data-theme="light"] .suraTick:hover{
-  background: rgba(var(--rgb-ink),0.08);
-}
-
-/* “Aktuelle Ayah” Tick stärker */
-.suraTick.is-active{
-  background: var(--c-a-10);
-}
-
-
-/* ✅ Lightmode: NICHT transparent */
-html[data-theme="light"] .suraProgTip{
-  background: #f6f8fb;
-  border: var(--u1h) solid var(--c-ink-12);
-  color: #0c1626;
+.statusbar.is-hifz-range-ui .suraTick.is-range-start::after,
+.statusbar.is-hifz-range-ui .suraTick.is-range-end::after{
+  background: var(--c-a-95);
   box-shadow:
-    0 var(--u10h) var(--u30h) var(--c-black-18),
-    0 0 0 var(--u1h) var(--c-black-03);
-  backdrop-filter: none;
+    0 0 calc(var(--glow-ring) * 1.45) var(--c-a-55),
+    0 0 calc(var(--glow-soft) * 0.78) var(--c-a-35);
+  z-index: 4;
 }
 
+/* ✅ aktuelle Ayah = orange in Train + Test, dicker + stärker */
+.statusbar.is-hifz-range-ui .suraTick.is-active{
+  background: rgba(var(--rgb-warn),0.08);
+}
+
+.statusbar.is-hifz-range-ui .suraTick.is-active::after{
+  background: var(--c-warn-95);
+  box-shadow:
+    0 0 calc(var(--glow-ring) * 1.45) var(--glow-warn-55),
+    0 0 calc(var(--glow-soft) * 0.78) var(--c-warn-55);
+  z-index: 5;
+}
+
+/* ✅ Lightmode */
+html[data-theme="light"] .suraTick::before{
+  background:
+    linear-gradient(
+      180deg,
+      rgba(var(--rgb-white),0.74) 0%,
+      rgba(var(--rgb-ok),0.98) 8%,
+      rgba(var(--rgb-ok),0.86) 40%,
+      rgba(var(--rgb-ok),0.60) 100%
+    );
+  box-shadow:
+    inset 0 calc(var(--u1h) * 1.70) calc(var(--u12h) * 1.00) rgba(var(--rgb-white),0.34),
+    inset 0 calc(var(--u2h) * -1.25) calc(var(--u14h) * 1.28) rgba(var(--rgb-ok),0.42),
+    inset 0 0 calc(var(--u14h) * 1.55) rgba(var(--rgb-ok),0.26),
+    0 calc(var(--u1h) * -1.00) calc(var(--u10h) * 0.95) rgba(var(--rgb-ok),0.32),
+    0 0 calc(var(--glow-soft) * 0.18) rgba(var(--rgb-ok),0.18);
+}
+
+html[data-theme="light"] .suraTick.is-hifz-progress::before,
+html[data-theme="light"] .suraTick.is-hifz-mastered::before{
+  opacity:1;
+  border-top: var(--u2h) solid rgba(var(--rgb-ok),0.98);
+}
+
+html[data-theme="light"] .suraTick.is-hifz-mastered::before{
+  background:
+    linear-gradient(
+      180deg,
+      rgba(var(--rgb-white),0.80) 0%,
+      rgba(var(--rgb-ok),1) 7%,
+      rgba(var(--rgb-ok),0.92) 40%,
+      rgba(var(--rgb-ok),0.66) 100%
+    );
+  box-shadow:
+    inset 0 calc(var(--u1h) * 1.85) calc(var(--u12h) * 1.05) rgba(var(--rgb-white),0.38),
+    inset 0 calc(var(--u2h) * -1.35) calc(var(--u14h) * 1.36) rgba(var(--rgb-ok),0.48),
+    inset 0 0 calc(var(--u14h) * 1.65) rgba(var(--rgb-ok),0.30),
+    0 calc(var(--u1h) * -1.08) calc(var(--u10h) * 1.00) rgba(var(--rgb-ok),0.36),
+    0 0 calc(var(--glow-soft) * 0.20) rgba(var(--rgb-ok),0.20);
+}
+
+html[data-theme="light"] .suraTick::after{
+  background: rgba(var(--rgb-ink),0.24);
+}
+
+html[data-theme="light"] .suraTick:hover::after{
+  background: rgba(var(--rgb-ink),0.48);
+}
+
+html[data-theme="light"] .suraTick:hover{
+  background: rgba(var(--rgb-ink),0.07);
+}
+
+html[data-theme="light"] .statusbar.is-hifz-range-ui .suraProg{
+  background:
+    linear-gradient(
+      180deg,
+      rgba(var(--rgb-ink),0.060) 0%,
+      rgba(var(--rgb-ink),0.040) 100%
+    );
+  border-top: var(--u1h) solid rgba(var(--rgb-ink),0.14);
+  border-bottom: var(--u1h) solid rgba(var(--rgb-ink),0.14);
+  box-shadow:
+    inset 0 0 0 var(--u1h) rgba(var(--rgb-ink),0.06),
+    inset 0 calc(var(--u1h) * 1.20) calc(var(--u8h) * 0.65) rgba(var(--rgb-white),0.42);
+}
+
+html[data-theme="light"] .statusbar.is-hifz-range-ui .suraProg::after{
+  background: rgba(var(--rgb-ink),0.14);
+}
+
+html[data-theme="light"] .statusbar.is-hifz-range-ui .suraTick{
+  background: rgba(var(--rgb-ink),0.036);
+  box-shadow:
+    inset var(--u1w) 0 0 rgba(var(--rgb-ink),0.12),
+    inset 0 0 0 var(--u1h) rgba(var(--rgb-ink),0.05);
+}
+
+html[data-theme="light"] .statusbar.is-hifz-range-ui .suraTick:hover{
+  background: rgba(var(--rgb-ink),0.075);
+}
 
 
 
@@ -1229,8 +1466,8 @@ html[data-theme="light"] .suraProgTip{
   transform-origin: 0% 50%;
   transform: scaleX(0);
 
-  /* gleiches Blau wie deine UI-Highlights */
-  background: rgba(var(--rgb-accent),0.72);
+  /* viel transparenteres Blau */
+  background: rgba(var(--rgb-accent),0.18);
 
   pointer-events: none;
 
@@ -1245,6 +1482,12 @@ html[data-theme="light"] .suraProgTip{
   opacity: 1;
 }
 
+/* ✅ Testmodus: blauen Scroll-Fill ganz aus */
+.statusbar.is-hifz-test #scrollProgress{
+  display: none !important;
+  opacity: 0 !important;
+}
+
 /* ✅ während SurahPlay aus (weil dann #progress zuständig ist) */
 .statusbar.is-surah-playing #scrollProgress{
   display: none !important;
@@ -1256,7 +1499,6 @@ html[data-theme="light"] .suraProgTip{
   display: none !important;
   opacity: 0;
 }
-
 /* ✅ Statusbar: in Favorites nur PlayPause verstecken (PlayStop bleibt sichtbar) */
 .statusbar.is-favorites #playPause{
   display: none !important;
@@ -1996,14 +2238,13 @@ html[data-theme="light"] .viewToggleBtn .viewIcon{
   position:absolute;
   left:50%;
   transform:translateX(-50%);
-  top: calc(var(--stage-h) * (0.1229630 + 0.005));
+  top: calc(var(--stage-h) * (0.1229630 + 0.03150)); /* HIER Abstand Statusbar -> HifzTopBar */
   width: var(--ayah-card-w);
 
-  /* ✅ Scroll wieder aktiv */
   height: calc(
   (var(--vh) - var(--bar-bottom)) 
-  - (var(--stage-h) * (0.1229630 + 0.005))  /* qView top */
-  - (var(--stage-h) * 0.02));               /* kleiner bottom-safety */
+  - (var(--stage-h) * (0.1229630 + 0.0280))
+  - (var(--stage-h) * 0.02));
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 
@@ -2012,8 +2253,6 @@ html[data-theme="light"] .viewToggleBtn .viewIcon{
 
   display:flex;
   flex-direction:column;
-
-  /* ✅ Abstand zwischen Karten wieder sichtbar */
   gap: calc(var(--stage-h) * 0.0158);
 
   padding-bottom: calc(var(--stage-h) * 0.03);
@@ -2068,20 +2307,18 @@ html[data-theme="light"] .viewToggleBtn .viewIcon{
   left:50%;
   transform:translateX(-50%);
 
-  /* ✅ gleich wie .qView → gleicher Abstand über/unter der surahTopBar */
-  top: calc(var(--stage-h) * (0.1229630 + 0.005));
+  top: calc(var(--stage-h) * (0.1229630 + 0.03150)); /* HIER Abstand Statusbar -> HifzTopBar */
 
   width: var(--ayah-card-w);
 
  height: calc(
   (var(--vh) - var(--bar-bottom))
-  - (var(--stage-h) * (0.1229630 + 0.005))  /* mView top (wie qView) */
-  - (var(--stage-h) * 0.02)                 /* kleiner bottom-safety */
+  - (var(--stage-h) * (0.1229630 + 0.0280))
+  - (var(--stage-h) * 0.02)
 );
   overflow-y:auto;
   -webkit-overflow-scrolling: touch;
 
-  /* ✅ gleiche “Listen-Logik” wie Ayah-Mode */
   box-sizing: border-box;
   padding-inline: 0;
   display:flex;
@@ -2089,7 +2326,6 @@ html[data-theme="light"] .viewToggleBtn .viewIcon{
   gap: calc(var(--stage-h) * 0.0158);
 
   padding-bottom: calc(var(--stage-h) * 0.03);
-  
 }
 
 .mCenter{
@@ -2437,6 +2673,26 @@ padding-right: calc(var(--mushaf-pad-x) + var(--u6w)); /* ✅ NUR links mehr Pla
   display:flex;
   align-items:center;
   justify-content:flex-start;
+  gap: 0;
+  min-width: 0;
+}
+
+/* ✅ Testmodus: 3 linke Controls bekommen denselben Abstand
+   wie rechts zwischen "Ayah marked as bad" und Mode-Button */
+.hifzTestTopBar .surahTopFarLeft{
+  gap: calc(var(--stage-w) * 0.008);
+}
+
+.hifzTestTopBar .surahTopFarLeft > *{
+  flex: 0 0 auto;
+}
+
+.hifzTopControls{
+  display:flex;
+  align-items:center;
+  gap: calc(var(--stage-w) * 0.006);
+  margin-left: calc(var(--stage-w) * 0.006);
+  flex: 0 0 auto;
 }
 
 /* ✅ WICHTIG: playStop in Topbar darf NICHT absolute/centered sein */
@@ -2555,6 +2811,7 @@ padding-right: calc(var(--mushaf-pad-x) + var(--u6w)); /* ✅ NUR links mehr Pla
   display:flex;
   align-items:center;
   justify-content:flex-end;
+  gap: calc(var(--stage-w) * 0.006);
 }
 
 .surahTopBtn{
@@ -2605,6 +2862,35 @@ padding-right: calc(var(--mushaf-pad-x) + var(--u6w)); /* ✅ NUR links mehr Pla
   border-radius: var(--ayah-card-r);
   color: var(--color-text);
   overflow:hidden;
+}
+
+.hifzAyahCard{
+  padding:0;
+}
+
+.hifzAyahCard .ayahHeaderRow{
+  padding:
+    calc((var(--ayah-gap) * 1.05) + (var(--u6h) * 2.4))
+    calc(var(--ayah-gap) * 1.7)
+    calc(var(--ayah-gap) * 1.1)
+    calc(var(--ayah-gap) * 1.7);
+}
+
+.hifzAyahCard .hifzAyahBody{
+  margin:0;
+  border-radius:0 0 var(--ayah-card-r) var(--ayah-card-r);
+}
+
+.hifzAyahCard .hifzAyahProgress{
+  border-radius:0;
+}
+
+.hifzAyahCard .hifzAyahInner{
+  padding:
+    calc(var(--stage-h) * 0.010)
+    calc(var(--stage-w) * 0.010)
+    calc(var(--stage-h) * 0.010)
+    calc(var(--stage-w) * 0.010);
 }
 
 /* ✅ Zwischen-Header im Ayah-Scroll: NICHT sticky */
@@ -2667,33 +2953,35 @@ padding-right: calc(var(--mushaf-pad-x) + var(--u6w)); /* ✅ NUR links mehr Pla
   padding:0;
   line-height:1;
 
-  /* Icon-Größe */
   font-size: calc(var(--stage-h) * 0.015);
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
 
   cursor:pointer;
   user-select:none;
 
+  position:relative;
+  overflow:visible;
+  isolation:isolate;
+
   transition: transform 120ms ease, box-shadow 140ms ease, background 140ms ease, border-color 140ms ease, opacity 140ms ease;
 }
 
 .ayahPlay::before{
-  /* default = Play */
   content: "▶";
   display:block;
   line-height:1;
   font-size: calc(var(--stage-h) * 0.015);
   transform: translate(0.06em, -0.06em);
+  position:relative;
+  z-index:3;
 }
 
 .ayahPlay.is-playing::before{
-  /* playing = Pause */
   content:"⏸";
   transform: translate(0, -0.06em);
 }
 
 .ayahPlay.is-paused::before{
-  /* paused = Play */
   content:"▶";
   transform: translate(0.06em, -0.06em);
 }
@@ -2716,7 +3004,6 @@ padding-right: calc(var(--mushaf-pad-x) + var(--u6w)); /* ✅ NUR links mehr Pla
   border-color: var(--c-a-85);
 }
 
-/* paused = leichter glow */
 .ayahPlay.is-paused{
   opacity: .92;
   border-color: rgba(var(--rgb-accent),0.55);
@@ -2940,27 +3227,27 @@ padding-right: calc(var(--mushaf-pad-x) + var(--u6w)); /* ✅ NUR links mehr Pla
 /* Arabischer Textbereich (responsive, damit padding nix "wegschiebt") */
 .ayahText{
   font-family: var(--font-ar);
-  width: 100%;                 /* ✅ darf kleiner werden */
-  max-width: var(--ayah-inner-w); /* ✅ bleibt auf großen Screens schön */
-  margin-bottom: calc(var(--stage-h) * 0.013);
+  width: 100%;
+  max-width: var(--ayah-inner-w);
   margin-top: calc(var(--stage-h) * 0.011);
+  margin-bottom: calc(var(--stage-h) * 0.013);
+  margin-inline: auto;
   height: auto;
+  box-sizing: border-box;
 
   direction: rtl;
   unicode-bidi: isolate-override;
   font-size: var(--ayah-font-ar);
   color: var(--color-ar-text);
   opacity: 1;
-  
-  /* sorgt dafür, dass Arabisch wirklich RTL “korrrekt” justified */
-  direction: rtl;
-  unicode-bidi: isolate-override;
-  /* ✅ Blocksatz pro Card */
+
   text-align: right;
   text-justify: inter-word;
-
-  /* ✅ aber letzte Zeile NICHT strecken */
   text-align-last: right;
+
+  /* ✅ rechter Innenabstand wie früher wieder zurück */
+  padding-right: calc(var(--stage-w) * 0.0175);
+  padding-left: calc(var(--stage-w) * 0.0016);
 }
 
 .ayahTrans{
@@ -3103,6 +3390,16 @@ padding-right: calc(var(--mushaf-pad-x) + var(--u6w)); /* ✅ NUR links mehr Pla
   flex-direction:column;
   gap: calc(var(--stage-h) * 0.0158);
 }
+
+.hifzSurahSummaryPct{
+  font-family: var(--font-meta);
+  font-size: calc(var(--ayah-font-meta) * 0.60);
+  font-weight: 600;
+  line-height: 1;
+  opacity: 0.88;
+  color: var(--color-text);
+}
+
 
 /* Bookmark Button: kein Kreis, kein Rand, nur Icon */
 .ayahBm{
@@ -4562,8 +4859,9 @@ html[data-theme="light"] .favTick:hover::after{ background: rgba(var(--rgb-ink),
    - Fix 2: Basmallah Card wächst bei großer Schrift -> kein clip, echtes auto height
    ========================================================= */
 
-/* SurahTopBar (oben in Ayah-Mode) */
-.qView[data-mode="suraCards"] > .surahTopBar{
+/* SurahTopBar (oben in Ayah-Mode + Mushaf-Hifz-Topbar) */
+.qView[data-mode="suraCards"] > .surahTopBar,
+.mView > .surahTopBar.mushafTopBar{
   flex: 0 0 auto !important;
   height: auto !important;
   min-height: unset !important;
@@ -4576,7 +4874,8 @@ html[data-theme="light"] .favTick:hover::after{ background: rgba(var(--rgb-ink),
   content-visibility: visible !important;
 
   position: relative;
-  z-index: 1;
+  z-index: 40;
+  isolation: isolate;
 }
 
 /* Basmallah-Card: immer “auto height”, nie clippen */
@@ -5325,50 +5624,80 @@ html[data-theme="light"] .notesOverlay{
 }
 
 /* =========================
-   Mushaf: ayah number rings (copy + play progress)
+   Mushaf: ayah number rings
+   - grüner Memorize-Ring im Trainmodus
+   - blauer Play-Ring hat Vorrang
    ========================= */
 
-/* Basis: wir brauchen eine stabile Layering-Umgebung für den Progress-Ring */
 .mNo{
   position: relative;
-  isolation: isolate;            /* sorgt dafür, dass ::before sauber “hinter” dem Inhalt bleibt */
-  --ring: 0;                     /* 0..1 wird per JS gesetzt */
-
+  isolation: isolate;
+  --ring: 0;
+  --hifz-ring: 0;
   transition: box-shadow 140ms ease, border-color 140ms ease, background 140ms ease, color 140ms ease;
 }
 
-/* ✅ Progress-Ring: nur wenn diese Ayah gerade läuft (is-focus wird von JS gesetzt) */
-.mNo.is-focus::before{
+/* ✅ Memorize-Ring NUR im Trainmodus */
+.statusbar.is-hifz-train ~ .mView .mNo.is-hifz-progress::before,
+.statusbar.is-hifz-train ~ .mView .mNo.is-hifz-mastered::before,
+.statusbar.is-hifz-train ~ .mView .mNo.is-hifz-bad::before{
   content:"";
   position:absolute;
-
-  inset: calc(var(--u3h) * -1);
-
-  border-radius: inherit;
-  pointer-events: none;
-
-  background: conic-gradient(
-    var(--c-a-85) calc(var(--ring) * 1turn),
-    var(--color-line) 0
-  );
-
-  /* ✅ innerer Kreis größer => Ring dünner/cleaner */
+  inset: calc(var(--u1h) * -3.2);
+  border-radius:999px;
+  pointer-events:none;
+  z-index:1;
   -webkit-mask: radial-gradient(
     farthest-side,
-    transparent calc(100% - var(--u4h)),
-    #000 0
+    transparent calc(100% - calc(var(--u1h) * 4)),
+    #000 calc(100% - calc(var(--u1h) * 4))
   );
   mask: radial-gradient(
     farthest-side,
-    transparent calc(100% - var(--u4h)),
-    #000 0
+    transparent calc(100% - calc(var(--u1h) * 4)),
+    #000 calc(100% - calc(var(--u1h) * 4))
   );
-
-  opacity: 0.98;
-  z-index: -1;
+  opacity:0.96;
 }
 
-/* ✅ Copy-Glow hat Vorrang (grün gewinnt) */
+.statusbar.is-hifz-train ~ .mView .mNo.is-hifz-progress::before{
+  background: conic-gradient(
+    rgba(var(--rgb-ok),0.98) 0turn calc(var(--hifz-ring, 0) * 1turn),
+    rgba(var(--rgb-ok),0.12) calc(var(--hifz-ring, 0) * 1turn) 1turn
+  );
+  box-shadow:
+    0 0 0 calc(var(--glow-ring) * 1.05) rgba(var(--rgb-ok),0.34),
+    0 0 calc(var(--glow-soft) * 0.72) rgba(var(--rgb-ok),0.28);
+}
+
+.statusbar.is-hifz-train ~ .mView .mNo.is-hifz-mastered::before{
+  background: conic-gradient(
+    rgba(var(--rgb-ok),1) 0turn 1turn
+  );
+  box-shadow:
+    0 0 0 calc(var(--glow-ring) * 1.20) rgba(var(--rgb-ok),0.40),
+    0 0 calc(var(--glow-soft) * 0.92) rgba(var(--rgb-ok),0.36);
+  opacity:1;
+}
+
+.statusbar.is-hifz-train ~ .mView .mNo.is-hifz-bad::before{
+  background: conic-gradient(
+    rgba(var(--rgb-danger),1) 0turn 1turn
+  );
+  box-shadow:
+    0 0 0 calc(var(--glow-ring) * 1.20) rgba(var(--rgb-danger),0.42),
+    0 0 calc(var(--glow-soft) * 0.92) rgba(var(--rgb-danger),0.30);
+  opacity:1;
+}
+
+/* wenn Play auf dieser Ayah läuft, Memorize-Ring verstecken */
+.statusbar.is-hifz-train ~ .mView .mNo.is-focus.is-hifz-progress::before,
+.statusbar.is-hifz-train ~ .mView .mNo.is-focus.is-hifz-mastered::before,
+.statusbar.is-hifz-train ~ .mView .mNo.is-focus.is-hifz-bad::before{
+  opacity:0;
+}
+
+/* Copy-Glow bleibt sichtbar */
 .mNo.is-copied{
   box-shadow:
     0 0 0 var(--glow-ring) rgba(var(--rgb-ok),0.35),
@@ -5377,7 +5706,6 @@ html[data-theme="light"] .notesOverlay{
   border-color: rgba(var(--rgb-ok),0.85) !important;
 }
 
-/* ✅ explizit: wenn beides aktiv ist, gewinnt Copy */
 .mNo.is-fav.is-copied{
   box-shadow:
     0 0 0 var(--glow-ring) rgba(var(--rgb-ok),0.35),
@@ -5386,67 +5714,31 @@ html[data-theme="light"] .notesOverlay{
   border-color: rgba(var(--rgb-ok),0.85) !important;
 }
 
-/* ✅ Copy gewinnt auch optisch über Progress (Ring ausblenden) */
-.mNo.is-copied::before{
-  opacity: 0 !important;
-}
-
-/* =========================
-   Mushaf: "Continue" Hover auf Ayah-Nummer (Ring)
-   + Playing Progress Ring (AyahPlay / SuraPlay / FavPlay)
-   ========================= */
-
-/* Grund: wir brauchen einen sichtbaren Ring für --ring (wird in app.js gesetzt) */
-.mNo{
-  transition: box-shadow 140ms ease, border-color 140ms ease, background 140ms ease, color 140ms ease;
-
-  /* ✅ nötig für ::after Ring */
-  position: relative;
-  isolation: isolate; /* sorgt dafür, dass z-index sauber funktioniert */
-  --ring: 0;
-}
-
-/* Dark Mode: weißer Hover-Ring */
+/* normaler Hover */
 .mNo:hover{
   box-shadow:
     0 0 0 calc(var(--glow-ring) * 1.05) var(--c-w-22),
     0 0 calc(var(--glow-soft) * 0.95) rgba(255,255,255,0.35);
 }
 
-/* White Mode: dunkler Hover-Ring */
 html[data-theme="light"] .mNo:hover{
   box-shadow:
     0 0 0 calc(var(--glow-ring) * 1.05) rgba(var(--rgb-ink),0.20),
     0 0 calc(var(--glow-soft) * 0.95) rgba(var(--rgb-ink),0.28);
 }
 
-/* =========================
-   Mushaf: Playing Progress Ring
-   - läuft im Uhrzeigersinn
-   - dominiert den orange Fav-Ring
-   - wird NICHT über dem grünen Copy-Glow angezeigt
-   ========================= */
-
+/* blauer Play-Ring bleibt oberste Priorität */
 .mNo.is-focus::after{
   content: "";
   position: absolute;
-
-  /* etwas außerhalb der Zahl, damit es "dominant" wirkt */
   inset: calc(var(--u1h) * -4);
   border-radius: 999px;
-
   pointer-events: none;
-
-  /* ✅ über normalem Border/Fav-Look */
   z-index: 2;
-
-  /* Ring-Farbe aus Root-Variablen (blau/accent) */
   background: conic-gradient(
     var(--c-a-95) 0turn calc(var(--ring, 0) * 1turn),
     var(--c-a-22) calc(var(--ring, 0) * 1turn) 1turn
   );
-
-  /* Ring “ausschneiden” (nur Stroke sichtbar) */
   -webkit-mask: radial-gradient(
     farthest-side,
     transparent calc(100% - calc(var(--u1h) * 5)),
@@ -5457,11 +5749,6 @@ html[data-theme="light"] .mNo:hover{
     transparent calc(100% - calc(var(--u1h) * 5)),
     #000 calc(100% - calc(var(--u1h) * 5))
   );
-}
-
-/* ✅ Wenn Copy-Glow aktiv ist, Ring aus (grün soll gewinnen) */
-.mNo.is-copied::after{
-  opacity: 0;
 }
 
 /* =========================
@@ -7180,10 +7467,25 @@ html[data-theme="light"] .fontDropMenu::-webkit-scrollbar-track{
   transform:translateY(-0.02em);
 }
 
-.hifzRangeInput,
-.hifzStageSelect{
+.hifzStageSelectNative{
+  display:none !important;
+}
+
+.hifzStageDrop,
+.hifzRangeInput{
+  flex:0 0 auto;
+}
+
+.hifzStageDrop{
+  position:relative;
+  width:calc(var(--stage-w) * 0.160);
+  --hifz-stage-pct:0%;
+}
+
+.hifzStageDropBtn,
+.hifzRangeInput{
   height:calc(var(--stage-h) * 0.0519);
-  border-radius:var(--jump-r);
+  border-radius:calc(var(--stage-h) * 0.0062);
   border:var(--u1h) solid var(--color-line);
   background:var(--surah-topbar-mode-bg);
   color:var(--color-text);
@@ -7212,31 +7514,295 @@ html[data-theme="light"] .fontDropMenu::-webkit-scrollbar-track{
     0 0 var(--glow-soft) var(--c-a-35);
 }
 
-.hifzStageSelect{
-  width:calc(var(--stage-w) * 0.160);
+.hifzStageDropBtn{
+  position:relative;
+  width:100%;
   padding-inline:
-    calc(var(--stage-w) * 0.010)
-    calc(var(--stage-w) * 0.028);
-  appearance:none;
-  -webkit-appearance:none;
-  -moz-appearance:none;
-  background-image:
-    linear-gradient(45deg, transparent 50%, currentColor 50%),
-    linear-gradient(135deg, currentColor 50%, transparent 50%);
-  background-position:
-    calc(100% - calc(var(--stage-w) * 0.018)) calc(50% - calc(var(--stage-h) * 0.002)),
-    calc(100% - calc(var(--stage-w) * 0.013)) calc(50% - calc(var(--stage-h) * 0.002));
-  background-size:
-    calc(var(--stage-w) * 0.006) calc(var(--stage-h) * 0.006),
-    calc(var(--stage-w) * 0.006) calc(var(--stage-h) * 0.006);
-  background-repeat:no-repeat;
+    calc(var(--stage-w) * 0.0075)
+    calc(var(--stage-w) * 0.0090);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:calc(var(--stage-w) * 0.006);
+  overflow:hidden;
+  isolation:isolate;
+  cursor:pointer;
 }
 
-.hifzStageSelect:focus{
+.hifzStageDropBtn::before{
+  content:"";
+  position:absolute;
+  inset:0 auto 0 0;
+  width:var(--hifz-stage-pct);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(var(--rgb-white),0.72) 0%,
+      rgba(var(--rgb-ok),1) 6%,
+      rgba(var(--rgb-ok),0.92) 40%,
+      rgba(var(--rgb-ok),0.64) 100%
+    );
+  box-shadow:
+    inset 0 calc(var(--u1h) * 2.1) calc(var(--u12h) * 1.15) rgba(var(--rgb-white),0.45),
+    inset 0 calc(var(--u2h) * -1.50) calc(var(--u14h) * 1.55) rgba(var(--rgb-ok),0.76),
+    inset 0 0 calc(var(--u14h) * 2.00) rgba(var(--rgb-ok),0.60),
+    0 calc(var(--u1h) * -1.30) calc(var(--u10h) * 1.30) rgba(var(--rgb-ok),0.78),
+    0 0 calc(var(--glow-soft) * 0.36) rgba(var(--rgb-ok),0.32);
+  pointer-events:none;
+  z-index:0;
+}
+
+.hifzStageDropBtn::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  box-shadow:
+    inset 0 0 0 var(--u1h) var(--c-w-06),
+    inset 0 calc(var(--u1h) * 1.1) calc(var(--u8h) * 0.65) var(--c-w-04);
+  pointer-events:none;
+  z-index:0;
+}
+
+.hifzStageDropBtnMain,
+.hifzStageDropBtnArrow{
+  position:relative;
+  z-index:1;
+}
+
+.hifzStageDropBtnMain{
+  min-width:0;
+  display:flex;
+  align-items:center;
+}
+
+.hifzStageDropBtnLabel{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:calc(var(--stage-h) * 0.024);
+  max-width:100%;
+  padding:
+    calc(var(--stage-h) * 0.0027)
+    calc(var(--stage-w) * 0.0054);
+  border-radius:calc(var(--stage-h) * 0.0040);
+  border:var(--u1h) solid var(--c-w-12);
+  background:var(--c-ink-35);
+  color:var(--c-w-98);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  font-weight:760;
+  text-shadow:
+    0 0 calc(var(--u6h) * 0.30) var(--c-black-25),
+    0 0 calc(var(--u10h) * 0.55) var(--c-ink-92);
+}
+
+.hifzStageDropBtnArrow{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:calc(var(--stage-w) * 0.0115);
+  min-width:calc(var(--stage-w) * 0.0115);
+  font-size:calc(var(--ayah-font-meta) * 0.58);
+  opacity:0.94;
+}
+
+.hifzStageDrop:hover .hifzStageDropBtn,
+.hifzStageDrop.is-open .hifzStageDropBtn,
+.hifzStageDropBtn:focus{
   border-color:var(--c-a-65);
   box-shadow:
     0 0 0 var(--glow-ring) rgba(var(--rgb-accent),0.20),
     0 0 var(--glow-soft) var(--c-a-35);
+}
+
+.hifzStageDrop.is-open .hifzStageDropBtnArrow{
+  transform:rotate(180deg);
+}
+
+.hifzStageDropMenu{
+  position:absolute;
+  top:calc(100% + calc(var(--stage-h) * 0.006));
+  left:0;
+  width:max(calc(var(--stage-w) * 0.265), 100%);
+  display:none;
+  flex-direction:column;
+  gap:0;
+  padding:0;
+  border-radius:0;
+  border:var(--u1h) solid var(--color-line);
+  background:var(--color-bg-stage);
+  box-shadow:
+    0 calc(var(--stage-h) * 0.010) calc(var(--stage-h) * 0.030) var(--c-black-35),
+    0 0 0 var(--u1h) var(--c-w-04);
+  overflow:hidden;
+  z-index:99050;
+}
+
+.hifzStageDrop.is-open .hifzStageDropMenu{
+  display:flex;
+}
+
+.hifzStageDropItem{
+  position:relative;
+  width:100%;
+  min-height:calc(var(--stage-h) * 0.048);
+  display:grid;
+  grid-template-columns:1fr auto;
+  align-items:center;
+  gap:0;
+  padding:
+    calc(var(--stage-h) * 0.0062)
+    calc(var(--stage-w) * 0.0070);
+  border:0;
+  border-top:var(--u1h) solid var(--c-w-10);
+  border-radius:0;
+  margin:0;
+  background:rgba(var(--rgb-white),0.018);
+  color:var(--color-text);
+  overflow:hidden;
+  isolation:isolate;
+  cursor:pointer;
+}
+
+.hifzStageDropItem:first-child{
+  border-top:0;
+}
+
+.hifzStageDropItem::before{
+  content:"";
+  position:absolute;
+  inset:0 auto 0 0;
+  width:var(--stage-progress);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(var(--rgb-white),0.72) 0%,
+      rgba(var(--rgb-ok),1) 6%,
+      rgba(var(--rgb-ok),0.92) 40%,
+      rgba(var(--rgb-ok),0.64) 100%
+    );
+  box-shadow:
+    inset 0 calc(var(--u1h) * 2.1) calc(var(--u12h) * 1.15) rgba(var(--rgb-white),0.45),
+    inset 0 calc(var(--u2h) * -1.50) calc(var(--u14h) * 1.55) rgba(var(--rgb-ok),0.76),
+    inset 0 0 calc(var(--u14h) * 2.00) rgba(var(--rgb-ok),0.60),
+    0 calc(var(--u1h) * -1.30) calc(var(--u10h) * 1.30) rgba(var(--rgb-ok),0.78),
+    0 0 calc(var(--glow-soft) * 0.36) rgba(var(--rgb-ok),0.32);
+  pointer-events:none;
+  z-index:0;
+}
+
+.hifzStageDropItem::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  box-shadow:inset 0 0 0 var(--u1h) var(--c-w-04);
+  opacity:0.70;
+  pointer-events:none;
+  z-index:0;
+}
+
+.hifzStageDropItemMain,
+.hifzStageDropItemPct{
+  position:relative;
+  z-index:1;
+}
+
+.hifzStageDropItemMain{
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:calc(var(--stage-h) * 0.0028);
+}
+
+.hifzStageDropItemTitle{
+  display:inline-flex;
+  align-items:center;
+  min-height:calc(var(--stage-h) * 0.024);
+  padding:
+    calc(var(--stage-h) * 0.0027)
+    0;
+  border-radius:0;
+  border:0;
+  background:transparent;
+  color:var(--c-w-98);
+  font-weight:760;
+  line-height:1;
+  white-space:nowrap;
+  box-shadow:none;
+  text-shadow:
+    0 0 calc(var(--u6h) * 0.30) var(--c-black-25),
+    0 0 calc(var(--u10h) * 0.55) var(--c-ink-92);
+}
+
+.hifzStageDropItemDesc{
+  font-size:calc(var(--ayah-font-meta) * 0.70);
+  line-height:1.08;
+  color:var(--c-w-88);
+  white-space:nowrap;
+  text-shadow:
+    0 0 calc(var(--u6h) * 0.25) var(--c-black-25),
+    0 0 calc(var(--u10h) * 0.35) var(--c-ink-90);
+}
+
+.hifzStageDropItemPct{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:calc(var(--stage-w) * 0.032);
+  padding:
+    calc(var(--stage-h) * 0.0027)
+    calc(var(--stage-w) * 0.0048);
+  border-radius:calc(var(--stage-h) * 0.0040);
+  border:0;
+  background:transparent;
+  color:var(--c-w-98);
+  font-weight:760;
+  font-variant-numeric:tabular-nums;
+  box-shadow:none;
+  text-shadow:
+    0 0 calc(var(--u6h) * 0.30) var(--c-black-25),
+    0 0 calc(var(--u10h) * 0.55) var(--c-ink-92);
+}
+
+.hifzStageDropItem:hover{
+  background:rgba(var(--rgb-white),0.028);
+}
+
+.hifzStageDropItem.is-selected{
+  box-shadow:
+    inset 0 0 0 var(--u1h) var(--c-a-65),
+    0 0 0 calc(var(--glow-ring) * 0.90) var(--c-a-18),
+    0 0 calc(var(--glow-soft) * 0.26) var(--c-a-22);
+}
+
+html[data-theme="light"] .hifzStageDropBtn,
+html[data-theme="light"] .hifzStageDropBtnLabel,
+html[data-theme="light"] .hifzStageDropBtnArrow,
+html[data-theme="light"] .hifzStageDropItem,
+html[data-theme="light"] .hifzStageDropItemTitle,
+html[data-theme="light"] .hifzStageDropItemDesc,
+html[data-theme="light"] .hifzStageDropItemPct{
+  background: transparent;
+  border-color: rgba(var(--rgb-ink),0.12);
+  color: rgba(var(--rgb-ink),0.94) !important;
+  box-shadow:none;
+  text-shadow:none !important;
+}
+
+html[data-theme="light"] .hifzStageDropItem{
+  background:rgba(var(--rgb-ink),0.045);
+}
+
+html[data-theme="light"] .hifzStageDropItem::after,
+html[data-theme="light"] .hifzStageDropBtn::after{
+  box-shadow:inset 0 0 0 var(--u1h) rgba(var(--rgb-ink),0.08);
+}
+
+html[data-theme="light"] .hifzStageDropItemDesc{
+  color:rgba(var(--rgb-ink),0.76);
+  text-shadow:none;
 }
 
 .hifzBody{
@@ -7302,8 +7868,12 @@ html.rotate-phone .hifzTopTitle{
   }
 
   .hifzRangeInput,
-  .hifzStageSelect{
+  .hifzStageDrop{
     width:min(calc(var(--stage-w) * 0.50), calc(var(--stage-h) * 0.22));
+  }
+
+  .hifzStageDropMenu{
+    width:min(calc(var(--stage-w) * 0.74), calc(var(--stage-h) * 0.56));
   }
 }
 
@@ -7328,7 +7898,22 @@ html.rotate-phone .hifzTopTitle{
 }
 
 
-.hifzStageSelect,
+.hifzStageSelectNative{
+  display:none !important;
+}
+
+.hifzStageDrop,
+.hifzRangeInput{
+  flex: 0 0 auto;
+}
+
+.hifzStageDrop{
+  position: relative;
+  width: calc(var(--stage-w) * 0.108);
+  --hifz-stage-pct: 0%;
+}
+
+.hifzStageDropBtn,
 .hifzRangeInput{
   height: var(--jump-h);
   border-radius: var(--jump-r);
@@ -7342,24 +7927,263 @@ html.rotate-phone .hifzTopTitle{
   outline: none;
 }
 
-.hifzStageSelect{
-  width: calc(var(--stage-w) * 0.135);
+.hifzStageDropBtn{
+  position: relative;
+  width: 100%;
   padding-inline:
-    calc(var(--stage-w) * 0.010)
-    calc(var(--stage-w) * 0.028);
-  appearance: none;
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  background-image:
-    linear-gradient(45deg, transparent 50%, currentColor 50%),
-    linear-gradient(135deg, currentColor 50%, transparent 50%);
-  background-position:
-    calc(100% - calc(var(--stage-w) * 0.018)) calc(50% - calc(var(--stage-h) * 0.002)),
-    calc(100% - calc(var(--stage-w) * 0.013)) calc(50% - calc(var(--stage-h) * 0.002));
-  background-size:
-    calc(var(--stage-w) * 0.006) calc(var(--stage-h) * 0.006),
-    calc(var(--stage-w) * 0.006) calc(var(--stage-h) * 0.006);
-  background-repeat: no-repeat;
+    calc(var(--stage-w) * 0.0068)
+    calc(var(--stage-w) * 0.0085);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  overflow: hidden;
+  isolation: isolate;
+  cursor: pointer;
+}
+
+.hifzStageDropBtn::before{
+  content:"";
+  position:absolute;
+  inset:0 auto 0 0;
+  width: var(--hifz-stage-pct);
+  background:
+    linear-gradient(
+      90deg,
+      var(--c-ink-45) 0%,
+      rgba(var(--rgb-ok),0.26) 18%,
+      rgba(var(--rgb-ok),0.56) 58%,
+      rgba(var(--rgb-ok),0.96) 100%
+    );
+  box-shadow:
+    inset 0 calc(var(--u1h) * 1.2) calc(var(--u10h) * 0.9) rgba(var(--rgb-white),0.16),
+    inset 0 calc(var(--u2h) * -1.0) calc(var(--u12h) * 1.0) rgba(var(--rgb-ok),0.30),
+    0 0 calc(var(--glow-soft) * 0.22) rgba(var(--rgb-ok),0.22);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.hifzStageDropBtn::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(var(--rgb-white),0.03) 0%,
+      rgba(var(--rgb-black),0.06) 100%
+    );
+  box-shadow: inset 0 0 0 var(--u1h) var(--c-w-04);
+  pointer-events:none;
+  z-index:0;
+}
+
+.hifzStageDropBtnLabel,
+.hifzStageDropBtnArrow{
+  position: relative;
+  z-index: 1;
+}
+
+.hifzStageDropBtnLabel{
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  max-width: calc(100% - calc(var(--stage-w) * 0.016));
+  min-height: calc(var(--stage-h) * 0.024);
+  padding:
+    calc(var(--stage-h) * 0.0026)
+    0;
+  border: 0;
+  border-radius: calc(var(--stage-h) * 0.0040);
+  background: transparent;
+  color: var(--c-w-98);
+  font-weight: 760;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: none;
+  text-shadow:
+    0 0 calc(var(--u6h) * 0.30) var(--c-black-25),
+    0 0 calc(var(--u10h) * 0.55) var(--c-ink-92);
+}
+
+.hifzStageDropBtnArrow{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--stage-w) * 0.012);
+  min-width: calc(var(--stage-w) * 0.012);
+  line-height: 1;
+  font-size: calc(var(--ayah-font-meta) * 0.63);
+  opacity: .85;
+  color: var(--color-text-muted);
+  transform: translateY(calc(var(--u1h) * -0.15));
+}
+
+.hifzStageDrop:hover .hifzStageDropBtn,
+.hifzStageDrop.is-open .hifzStageDropBtn,
+.hifzStageDropBtn:focus{
+  border-color: var(--c-a-65);
+  box-shadow:
+    0 0 0 var(--glow-ring) rgba(var(--rgb-accent),0.20),
+    0 0 var(--glow-soft) var(--c-a-35);
+}
+
+.hifzStageDrop.is-open .hifzStageDropBtnArrow{
+  transform: translateY(calc(var(--u1h) * -0.15)) rotate(180deg);
+}
+
+.hifzStageDropMenu{
+  position: absolute;
+  top: calc(100% + calc(var(--stage-h) * 0.006));
+  left: 0;
+  width: max(calc(var(--stage-w) * 0.255), 100%);
+  display: none;
+  flex-direction: column;
+  gap: calc(var(--stage-h) * 0.0045);
+  padding: calc(var(--stage-h) * 0.006);
+  border-radius: calc(var(--stage-h) * 0.012);
+  border: var(--u1h) solid var(--color-line);
+  background: var(--color-bg-stage);
+  box-shadow:
+    0 calc(var(--stage-h) * 0.010) calc(var(--stage-h) * 0.030) var(--c-black-35),
+    0 0 0 var(--u1h) var(--c-w-04);
+  z-index: 99050;
+}
+
+.hifzStageDrop.is-open .hifzStageDropMenu{
+  display: flex;
+}
+
+.hifzStageDropItem{
+  position: relative;
+  width: 100%;
+  min-height: calc(var(--stage-h) * 0.051);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: calc(var(--stage-w) * 0.006);
+  padding:
+    calc(var(--stage-h) * 0.0065)
+    calc(var(--stage-w) * 0.0075);
+  border-radius: calc(var(--stage-h) * 0.010);
+  border: var(--u1h) solid var(--c-w-10);
+  background: rgba(var(--rgb-white),0.028);
+  color: var(--color-text);
+  overflow: hidden;
+  isolation: isolate;
+  cursor: pointer;
+}
+
+.hifzStageDropItem::before{
+  content:"";
+  position:absolute;
+  inset:0 auto 0 0;
+  width: var(--stage-progress);
+  background:
+    linear-gradient(
+      90deg,
+      var(--c-ink-45) 0%,
+      rgba(var(--rgb-ok),0.26) 18%,
+      rgba(var(--rgb-ok),0.56) 58%,
+      rgba(var(--rgb-ok),0.96) 100%
+    );
+  box-shadow:
+    inset 0 calc(var(--u1h) * 1.2) calc(var(--u10h) * 0.9) rgba(var(--rgb-white),0.16),
+    inset 0 calc(var(--u2h) * -1.0) calc(var(--u12h) * 1.0) rgba(var(--rgb-ok),0.30),
+    0 0 calc(var(--glow-soft) * 0.22) rgba(var(--rgb-ok),0.22);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.hifzStageDropItem::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(var(--rgb-white),0.03) 0%,
+      rgba(var(--rgb-black),0.06) 100%
+    );
+  box-shadow: inset 0 0 0 var(--u1h) var(--c-w-04);
+  pointer-events:none;
+  z-index:0;
+}
+
+.hifzStageDropItemMain,
+.hifzStageDropItemPct{
+  position: relative;
+  z-index: 1;
+}
+
+.hifzStageDropItemMain{
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: calc(var(--stage-h) * 0.0035);
+  min-width: 0;
+}
+
+.hifzStageDropItemTitle{
+  display:inline-flex;
+  align-items:center;
+  justify-content:flex-start;
+  min-height:calc(var(--stage-h) * 0.024);
+  padding:
+    calc(var(--stage-h) * 0.0027)
+    0;
+  border-radius:calc(var(--stage-h) * 0.0040);
+  border:0;
+  background:transparent;
+  color:var(--c-w-98);
+  font-weight:760;
+  line-height:1;
+  white-space:nowrap;
+  box-shadow:none;
+  text-shadow:
+    0 0 calc(var(--u6h) * 0.30) var(--c-black-25),
+    0 0 calc(var(--u10h) * 0.55) var(--c-ink-92);
+}
+
+.hifzStageDropItemDesc{
+  font-size: calc(var(--ayah-font-meta) * 0.70);
+  line-height: 1.15;
+  color: var(--c-w-98);
+  white-space: nowrap;
+  text-shadow:
+    calc(var(--u1w) * -1) 0 0 rgba(var(--rgb-black),0.95),
+    var(--u1w) 0 0 rgba(var(--rgb-black),0.95),
+    0 calc(var(--u1h) * -1) 0 rgba(var(--rgb-black),0.95),
+    0 var(--u1h) 0 rgba(var(--rgb-black),0.95);
+}
+
+.hifzStageDropItemPct{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: calc(var(--stage-w) * 0.028);
+  color: var(--c-w-98);
+  font-weight: 760;
+  font-variant-numeric: tabular-nums;
+  text-shadow:
+    calc(var(--u1w) * -1) 0 0 rgba(var(--rgb-black),0.95),
+    var(--u1w) 0 0 rgba(var(--rgb-black),0.95),
+    0 calc(var(--u1h) * -1) 0 rgba(var(--rgb-black),0.95),
+    0 var(--u1h) 0 rgba(var(--rgb-black),0.95),
+    calc(var(--u1w) * -1) calc(var(--u1h) * -1) 0 rgba(var(--rgb-black),0.95),
+    var(--u1w) calc(var(--u1h) * -1) 0 rgba(var(--rgb-black),0.95),
+    calc(var(--u1w) * -1) var(--u1h) 0 rgba(var(--rgb-black),0.95),
+    var(--u1w) var(--u1h) 0 rgba(var(--rgb-black),0.95);
+}
+
+.hifzStageDropItem:hover{
+  border-color: var(--c-w-22);
+}
+
+.hifzStageDropItem.is-selected{
+  border-color: var(--c-a-65);
+  box-shadow:
+    0 0 0 calc(var(--glow-ring) * 0.90) var(--c-a-22),
+    0 0 calc(var(--glow-soft) * 0.32) var(--c-a-25);
 }
 
 .hifzRangeInput{
@@ -7373,7 +8197,6 @@ html.rotate-phone .hifzTopTitle{
   opacity: .82;
 }
 
-.hifzStageSelect:focus,
 .hifzRangeInput:focus{
   border-color: var(--c-a-65);
   box-shadow:
@@ -7381,8 +8204,30 @@ html.rotate-phone .hifzTopTitle{
     0 0 var(--glow-soft) var(--c-a-35);
 }
 
-html.rotate-phone .hifzStageSelect{
+html[data-theme="light"] .hifzStageDropBtnLabel,
+html[data-theme="light"] .hifzStageDropBtnArrow,
+html[data-theme="light"] .hifzStageDropItemTitle,
+html[data-theme="light"] .hifzStageDropItemDesc,
+html[data-theme="light"] .hifzStageDropItemPct{
+  color: var(--c-w-98);
+}
+
+html[data-theme="light"] .hifzStageDropItem{
+  background: rgba(var(--rgb-ink),0.040);
+  border-color: rgba(var(--rgb-ink),0.12);
+}
+
+html[data-theme="light"] .hifzStageDropItem::after,
+html[data-theme="light"] .hifzStageDropBtn::after{
+  box-shadow: inset 0 0 0 var(--u1h) rgba(var(--rgb-ink),0.08);
+}
+
+html.rotate-phone .hifzStageDrop{
   width: min(calc(var(--stage-w) * 0.42), calc(var(--stage-h) * 0.22));
+}
+
+html.rotate-phone .hifzStageDropMenu{
+  width: min(calc(var(--stage-w) * 0.72), calc(var(--stage-h) * 0.54));
 }
 
 html.rotate-phone .hifzRangeInput{
@@ -7474,126 +8319,349 @@ html.rotate-phone .hifzRangeInput{
 
 .hifzRecallBox{
   width:100%;
-  margin-top:calc(var(--stage-h) * 0.012);
+  margin-top:calc(var(--stage-h) * 0.012); /* Abstand ÜBER dem Bereich */
   display:grid;
-  gap:calc(var(--stage-h) * 0.008);
+  gap:calc(var(--stage-h) * 0.010); /* Abstand zwischen Titel und Buttons */
 }
 
 .hifzRecallTitle{
+  position:relative;
+  display:grid;
+  justify-items:center;
+  align-items:center;
+  min-height:calc(var(--stage-h) * 0.024);
+  margin-top:calc(var(--stage-h) * 0.002);
+  margin-bottom:calc(var(--stage-h) * 0.004); /* Abstand UNTER dem Titel */
+  padding-bottom:calc(var(--stage-h) * 0.008);
   color:var(--color-text);
-  font-size:calc(var(--ayah-font-meta) * 0.98);
-  line-height:1.2;
-  font-weight:600;
+  font-size:calc(var(--ayah-font-meta) * 0.92);
+  font-weight:700;
+  line-height:1;
   text-align:center;
+  letter-spacing:calc(var(--stage-w) * 0.00055);
+}
+
+.hifzRecallTitle::after{
+  content:"";
+  width:calc(var(--stage-w) * 0.135);
+  max-width:100%;
+  height:var(--u1h);
+  margin-top:calc(var(--stage-h) * 0.007);
+  border-radius:var(--round-pill);
+  background:
+    linear-gradient(
+      90deg,
+      rgba(var(--rgb-accent),0.00) 0%,
+      rgba(var(--rgb-accent),0.95) 22%,
+      rgba(var(--rgb-accent),0.95) 78%,
+      rgba(var(--rgb-accent),0.00) 100%
+    );
+  box-shadow:
+    0 0 calc(var(--glow-ring) * 1.15) var(--c-a-45),
+    0 0 calc(var(--glow-soft) * 0.45) var(--c-a-25);
 }
 
 .hifzRecallActions{
   display:grid;
   grid-template-columns:repeat(2,minmax(0,1fr));
-  gap:calc(var(--stage-w) * 0.010);
+  gap:calc(var(--stage-w) * 0.012);
+  padding-inline:calc(var(--stage-w) * 0.014); /* rechter/linker Außenabstand */
 }
 
 .hifzRecallBtn{
-  min-height:calc(var(--stage-h) * 0.044);
-  border-radius:var(--jump-r);
-  border:var(--u1h) solid var(--color-line);
+  width:100%;
+  min-height:calc(var(--stage-h) * 0.052);
+  padding-inline:calc(var(--stage-w) * 0.015);
+  border-radius:calc(var(--stage-h) * 0.010);
+  border:var(--u1h) solid rgba(255,255,255,0.12);
   font-family:var(--font-meta);
-  font-size:calc(var(--ayah-font-meta) * 0.96);
+  font-size:calc(var(--ayah-font-meta) * 0.98);
+  font-weight:700;
   line-height:1;
   display:grid;
   place-items:center;
   text-align:center;
   cursor:pointer;
-  color:var(--color-text);
+  color:rgba(255,255,255,0.94);
+  box-sizing:border-box;
+  transform:translateY(0);
   transition:
-    transform 120ms ease,
-    box-shadow 140ms ease,
-    border-color 140ms ease,
-    background 140ms ease,
-    opacity 140ms ease;
+    transform 140ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease,
+    opacity 180ms ease;
+}
+
+.hifzRecallBtn:hover{
+  transform:translateY(calc(var(--u1h) * -1));
 }
 
 .hifzRecallBtn:active{
-  transform:scale(0.985);
+  transform:translateY(0);
 }
 
 .hifzRecallGood{
-  background:rgba(80,220,120,0.16);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(80,220,120,0.20) 0%,
+      rgba(80,220,120,0.14) 100%
+    );
+  border-color:rgba(80,220,120,0.34);
+  box-shadow:
+    inset 0 calc(var(--u1h) * 1.2) calc(var(--u12h) * 0.75) rgba(255,255,255,0.05),
+    0 calc(var(--u2h) * 1.1) calc(var(--u12h) * 0.90) rgba(0,0,0,0.16);
 }
 
 .hifzRecallGood:hover,
 .hifzRecallGood.is-active{
-  background:rgba(80,220,120,0.24);
-  border-color:rgba(80,220,120,0.45);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(80,220,120,0.34) 0%,
+      rgba(80,220,120,0.24) 100%
+    );
+  border-color:rgba(80,220,120,0.60);
   box-shadow:
-    0 0 0 var(--glow-ring) rgba(80,220,120,0.18),
-    0 0 var(--glow-soft) rgba(80,220,120,0.22);
+    inset 0 calc(var(--u1h) * 1.2) calc(var(--u12h) * 0.85) rgba(255,255,255,0.07),
+    0 0 0 calc(var(--glow-ring) * 1.10) rgba(80,220,120,0.22),
+    0 calc(var(--u2h) * 1.3) calc(var(--u14h) * 1.05) rgba(80,220,120,0.16),
+    0 0 calc(var(--glow-soft) * 0.72) rgba(80,220,120,0.28);
 }
 
 .hifzRecallBad{
-  background:rgba(255,90,90,0.16);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255,90,90,0.20) 0%,
+      rgba(255,90,90,0.14) 100%
+    );
+  border-color:rgba(255,90,90,0.34);
+  box-shadow:
+    inset 0 calc(var(--u1h) * 1.2) calc(var(--u12h) * 0.75) rgba(255,255,255,0.05),
+    0 calc(var(--u2h) * 1.1) calc(var(--u12h) * 0.90) rgba(0,0,0,0.16);
 }
 
 .hifzRecallBad:hover,
 .hifzRecallBad.is-active{
-  background:rgba(255,90,90,0.24);
-  border-color:rgba(255,90,90,0.45);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255,90,90,0.34) 0%,
+      rgba(255,90,90,0.24) 100%
+    );
+  border-color:rgba(255,90,90,0.60);
   box-shadow:
-    0 0 0 var(--glow-ring) rgba(255,90,90,0.18),
-    0 0 var(--glow-soft) rgba(255,90,90,0.22);
+    inset 0 calc(var(--u1h) * 1.2) calc(var(--u12h) * 0.85) rgba(255,255,255,0.07),
+    0 0 0 calc(var(--glow-ring) * 1.10) rgba(255,90,90,0.22),
+    0 calc(var(--u2h) * 1.3) calc(var(--u14h) * 1.05) rgba(255,90,90,0.16),
+    0 0 calc(var(--glow-soft) * 0.72) rgba(255,90,90,0.28);
 }
 
 .hifzAyahBody{
   position:relative;
   display:grid;
   gap:calc(var(--stage-h) * 0.008);
-  padding:
-    calc(var(--stage-h) * 0.010)
-    calc(var(--stage-w) * 0.010);
-  border-radius:calc(var(--ayah-card-r) * 0.72);
+  padding:0;
+  border-radius:0 0 var(--ayah-card-r) var(--ayah-card-r);
   overflow:hidden;
   transition:
     background-color 180ms ease,
     box-shadow 180ms ease;
 }
 
+.hifzAyahInner{
+  position:relative;
+  z-index:1;
+  display:grid;
+  gap:calc(var(--stage-h) * 0.008);
+  padding:
+    calc(var(--stage-h) * 0.010)
+    calc(var(--stage-w) * 0.010)
+    calc(var(--stage-h) * 0.010)
+    calc(var(--stage-w) * 0.010);
+}
+
+/* Header trägt jetzt die Leiste */
+.hifzAyahCard .ayahHeaderRow,
+.hifzAyahHeaderRow{
+  position:relative;
+  overflow:hidden;
+}
+
 .hifzAyahProgress{
   position:absolute;
-  inset:0;
+  top:0;
+  left:0;
+  right:0;
+  height:calc(var(--u6h) * 3.0);
   z-index:0;
-  background:transparent;
-}
+  pointer-events:none;
+  margin:0;
+  border-radius:calc(var(--stage-h) * 0.004);
+  overflow:hidden;
 
-.hifzAyahBody.is-hifz-progress .hifzAyahProgress,
-.hifzAyahBody.is-hifz-mastered .hifzAyahProgress{
+  /* leerer grauer Kasten */
   background:
     linear-gradient(
-      to left,
-      rgba(80,220,120,0.24) 0%,
-      rgba(80,220,120,0.24) calc(var(--hifz-progress, 0) * 100%),
-      transparent calc(var(--hifz-progress, 0) * 100%),
-      transparent 100%
+      180deg,
+      rgba(var(--rgb-white),0.032) 0%,
+      rgba(var(--rgb-white),0.020) 100%
     );
+  box-shadow:
+    inset 0 0 0 var(--u1h) rgba(var(--rgb-white),0.065),
+    inset var(--u1w) 0 0 rgba(var(--rgb-white),0.065);
+
+  transition:
+    background-color 180ms ease,
+    box-shadow 180ms ease;
 }
 
-.hifzAyahBody.is-hifz-mastered .hifzAyahProgress{
+.hifzAyahProgress::before{
+  content:"";
+  position:absolute;
+  left:0;
+  bottom:0;
+  width:calc(var(--hifz-progress, 0) * 100%);
+  height:100%;
+  opacity:0;
   background:
     linear-gradient(
-      to left,
-      rgba(52,180,92,0.34) 0%,
-      rgba(52,180,92,0.34) 100%,
-      transparent 100%,
-      transparent 100%
+      180deg,
+      rgba(var(--rgb-white),0.60) 0%,
+      rgba(var(--rgb-ok),0.98) 7%,
+      rgba(var(--rgb-ok),0.84) 36%,
+      rgba(var(--rgb-ok),0.56) 100%
     );
+  border-top:none;
+  box-shadow:none;
+  pointer-events:none;
+  transition:
+    width 180ms ease,
+    opacity 180ms ease,
+    box-shadow 180ms ease,
+    border-top-color 180ms ease;
 }
 
-.hifzAyahBody.is-hifz-bad .hifzAyahProgress{
+.hifzAyahProgress::after{
+  content: attr(data-progress-label);
+  position:absolute;
+  inset:0;
+  display:grid;
+  place-items:center;
+  z-index:2;
+  pointer-events:none;
+  font-family: var(--font-meta);
+  font-size: calc(var(--ayah-font-meta) * 0.72);
+  font-weight: 650;
+  line-height:1;
+  color: var(--color-text);
+  text-shadow:
+    0 0 calc(var(--u6h) * 0.35) rgba(var(--rgb-black),0.45);
+}
+
+.hifzAyahHeaderRow > .ayahRefRow,
+.hifzAyahHeaderRow > .ayahHeaderRight{
+  position:relative;
+  z-index:1;
+}
+
+.hifzAyahHeaderRow.is-hifz-progress .hifzAyahProgress::before{
+  opacity:1;
+  border-top: var(--u2h) solid rgba(var(--rgb-ok),1);
+  box-shadow:
+    inset 0 calc(var(--u1h) * 1.8) calc(var(--u12h) * 1.00) rgba(var(--rgb-white),0.38),
+    inset 0 calc(var(--u2h) * -1.35) calc(var(--u14h) * 1.40) rgba(var(--rgb-ok),0.62),
+    inset 0 0 calc(var(--u14h) * 1.80) rgba(var(--rgb-ok),0.48),
+    0 calc(var(--u1h) * -1.15) calc(var(--u10h) * 1.15) rgba(var(--rgb-ok),0.62),
+    0 0 calc(var(--glow-soft) * 0.28) rgba(var(--rgb-ok),0.24);
+}
+
+.hifzAyahHeaderRow.is-hifz-mastered .hifzAyahProgress::before{
+  width:100%;
+  opacity:1;
   background:
     linear-gradient(
-      to left,
-      rgba(255,90,90,0.22) 0%,
-      rgba(255,90,90,0.22) 100%
+      180deg,
+      rgba(var(--rgb-white),0.72) 0%,
+      rgba(var(--rgb-ok),1) 6%,
+      rgba(var(--rgb-ok),0.92) 40%,
+      rgba(var(--rgb-ok),0.64) 100%
     );
+  border-top: var(--u2h) solid rgba(var(--rgb-ok),1);
+  box-shadow:
+    inset 0 calc(var(--u1h) * 2.1) calc(var(--u12h) * 1.15) rgba(var(--rgb-white),0.45),
+    inset 0 calc(var(--u2h) * -1.50) calc(var(--u14h) * 1.55) rgba(var(--rgb-ok),0.76),
+    inset 0 0 calc(var(--u14h) * 2.00) rgba(var(--rgb-ok),0.60),
+    0 calc(var(--u1h) * -1.30) calc(var(--u10h) * 1.30) rgba(var(--rgb-ok),0.78),
+    0 0 calc(var(--glow-soft) * 0.36) rgba(var(--rgb-ok),0.32);
+}
+
+.hifzAyahHeaderRow.is-hifz-bad .hifzAyahProgress::before{
+  width:100%;
+  opacity:1;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(var(--rgb-white),0.38) 0%,
+      rgba(var(--rgb-danger),0.70) 8%,
+      rgba(var(--rgb-danger),0.46) 42%,
+      rgba(var(--rgb-danger),0.26) 100%
+    );
+  border-top: var(--u2h) solid rgba(var(--rgb-danger),0.95);
+  box-shadow:
+    inset 0 calc(var(--u1h) * 1.5) calc(var(--u12h) * 0.95) rgba(var(--rgb-white),0.20),
+    inset 0 calc(var(--u2h) * -1.2) calc(var(--u14h) * 1.25) rgba(var(--rgb-danger),0.34),
+    inset 0 0 calc(var(--u14h) * 1.50) rgba(var(--rgb-danger),0.22),
+    0 calc(var(--u1h) * -1.0) calc(var(--u10h) * 0.95) rgba(var(--rgb-danger),0.26),
+    0 0 calc(var(--glow-soft) * 0.22) rgba(var(--rgb-danger),0.16);
+}
+
+html[data-theme="light"] .hifzAyahProgress{
+  background:
+    linear-gradient(
+      180deg,
+      rgba(var(--rgb-ink),0.060) 0%,
+      rgba(var(--rgb-ink),0.040) 100%
+    );
+  box-shadow:
+    inset 0 0 0 var(--u1h) rgba(var(--rgb-ink),0.12),
+    inset var(--u1w) 0 0 rgba(var(--rgb-ink),0.10),
+    inset 0 calc(var(--u1h) * 1.20) calc(var(--u8h) * 0.65) rgba(var(--rgb-white),0.42);
+}
+
+html[data-theme="light"] .hifzAyahProgress::after{
+  color: rgba(var(--rgb-ink),0.90);
+  text-shadow:none;
+}
+
+html[data-theme="light"] .hifzAyahHeaderRow.is-hifz-progress .hifzAyahProgress::before{
+  opacity:1;
+  border-top: var(--u2h) solid rgba(var(--rgb-ok),0.98);
+  box-shadow:
+    inset 0 calc(var(--u1h) * 1.70) calc(var(--u12h) * 1.00) rgba(var(--rgb-white),0.34),
+    inset 0 calc(var(--u2h) * -1.25) calc(var(--u14h) * 1.28) rgba(var(--rgb-ok),0.42),
+    inset 0 0 calc(var(--u14h) * 1.55) rgba(var(--rgb-ok),0.26),
+    0 calc(var(--u1h) * -1.00) calc(var(--u10h) * 0.95) rgba(var(--rgb-ok),0.32),
+    0 0 calc(var(--glow-soft) * 0.18) rgba(var(--rgb-ok),0.18);
+}
+
+html[data-theme="light"] .hifzAyahHeaderRow.is-hifz-mastered .hifzAyahProgress::before{
+  background:
+    linear-gradient(
+      180deg,
+      rgba(var(--rgb-white),0.80) 0%,
+      rgba(var(--rgb-ok),1) 7%,
+      rgba(var(--rgb-ok),0.92) 40%,
+      rgba(var(--rgb-ok),0.66) 100%
+    );
+  box-shadow:
+    inset 0 calc(var(--u1h) * 1.85) calc(var(--u12h) * 1.05) rgba(var(--rgb-white),0.38),
+    inset 0 calc(var(--u2h) * -1.35) calc(var(--u14h) * 1.36) rgba(var(--rgb-ok),0.48),
+    inset 0 0 calc(var(--u14h) * 1.65) rgba(var(--rgb-ok),0.30),
+    0 calc(var(--u1h) * -1.08) calc(var(--u10h) * 1.00) rgba(var(--rgb-ok),0.36),
+    0 0 calc(var(--glow-soft) * 0.20) rgba(var(--rgb-ok),0.20);
 }
 
 .hifzAyahInner{
@@ -7607,20 +8675,127 @@ html.rotate-phone .hifzRangeInput{
 }
 
 .hifzRepeatMeta{
-  color:var(--text-2);
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  place-self:center;
+  min-height:calc(var(--stage-h) * 0.032);
+  padding-inline:calc(var(--stage-w) * 0.010);
+  border-radius:var(--round-pill);
+  border:var(--u1h) solid var(--c-a-18);
+  background:var(--c-a-10);
+  color:var(--color-text);
   font-size:calc(var(--ayah-font-meta) * 0.84);
-  line-height:1.2;
-  text-align:right;
+  font-weight:600;
+  line-height:1;
+  text-align:center;
+  white-space:nowrap;
+  margin-top:calc(var(--stage-h) * 0.01);
+  margin-bottom:calc(var(--stage-h) * 0.008);
+}
+
+.hifzRangeMissCard{
+  display:grid;
+  place-items:center;
+  min-height:calc(var(--stage-h) * 0.250);
+}
+
+.hifzRangeMissInner{
+  display:grid;
+  justify-items:center;
+  gap:calc(var(--stage-h) * 0.010);
+  text-align:center;
+  padding:
+    calc(var(--stage-h) * 0.020)
+    calc(var(--stage-w) * 0.018);
+}
+
+.hifzRangeMissRef{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:calc(var(--stage-h) * 0.034);
+  padding-inline:calc(var(--stage-w) * 0.012);
+  border-radius:var(--round-pill);
+  border:var(--u1h) solid rgba(var(--rgb-danger),0.30);
+  background:rgba(var(--rgb-danger),0.10);
+  color:rgb(var(--rgb-danger));
+  font-family:var(--font-meta);
+  font-size:calc(var(--ayah-font-meta) * 0.92);
+  font-weight:700;
+  line-height:1;
+}
+
+.hifzRangeMissText{
+  color:var(--color-text);
+  font-family:var(--font-meta);
+  font-size:calc(var(--ayah-font-meta) * 1.02);
+  font-weight:700;
+  line-height:1.35;
 }
 
 .hifzStage1PrevLabel,
 .hifzStage1FocusLabel,
 .hifzHiddenLabel{
-  color:var(--text-2);
-  font-size:calc(var(--ayah-font-meta) * 0.90);
-  line-height:1.2;
+  position:relative;
+  display:grid;
+  justify-items:center;
+  align-items:center;
+  min-height:calc(var(--stage-h) * 0.024);
+  margin-top:calc(var(--stage-h) * 0.004);
+  margin-bottom:calc(var(--stage-h) * 0.010);
+  padding-bottom:calc(var(--stage-h) * 0.008);
+  font-size:calc(var(--ayah-font-meta) * 0.82);
+  font-weight:650;
+  line-height:1;
   text-align:center;
-  margin-bottom:calc(var(--stage-h) * 0.008);
+  letter-spacing:calc(var(--stage-w) * 0.00055);
+}
+
+.hifzStage1PrevLabel::after,
+.hifzStage1FocusLabel::after,
+.hifzHiddenLabel::after{
+  content:"";
+  width:calc(var(--stage-w) * 0.120);
+  max-width:100%;
+  height:var(--u1h);
+  margin-top:calc(var(--stage-h) * 0.007);
+  border-radius:var(--round-pill);
+}
+
+.hifzStage1PrevLabel{
+  color:var(--color-text-muted);
+}
+
+.hifzStage1PrevLabel::after{
+  background:rgba(var(--rgb-white),0.14);
+}
+
+.hifzStage1FocusLabel{
+  color:var(--color-text);
+}
+
+.hifzStage1FocusLabel::after{
+  background:
+    linear-gradient(
+      90deg,
+      rgba(var(--rgb-accent),0.00) 0%,
+      rgba(var(--rgb-accent),0.95) 22%,
+      rgba(var(--rgb-accent),0.95) 78%,
+      rgba(var(--rgb-accent),0.00) 100%
+    );
+  box-shadow:
+    0 0 calc(var(--glow-ring) * 1.15) var(--c-a-45),
+    0 0 calc(var(--glow-soft) * 0.45) var(--c-a-25);
+}
+
+.hifzHiddenLabel{
+  color:var(--color-text-muted);
+  opacity:0.92;
+}
+
+.hifzHiddenLabel::after{
+  background:rgba(var(--rgb-white),0.12);
 }
 
 .hifzFirstWordOnly{
@@ -7648,7 +8823,7 @@ html.rotate-phone .hifzRangeInput{
 
 .hifzHiddenBox{
   display:grid;
-  gap:calc(var(--stage-h) * 0.010);
+  gap:calc(var(--stage-h) * 0.012);
   justify-items:center;
 }
 
@@ -7659,23 +8834,397 @@ html.rotate-phone .hifzRangeInput{
 }
 
 .hifzUnhideBtn{
-  min-height:calc(var(--stage-h) * 0.042);
-  padding-inline:calc(var(--stage-w) * 0.014);
+  min-height:calc(var(--stage-h) * 0.056);
+  min-width:calc(var(--stage-w) * 0.168);
+  padding-inline:calc(var(--stage-w) * 0.020);
   border-radius:var(--jump-r);
-  border:var(--u1h) solid var(--color-line);
-  background:var(--surah-topbar-mode-bg);
+  border:var(--u1h) solid var(--c-a-35);
+  background:var(--surah-topbar-bg);
   color:var(--color-text);
   font-family:var(--font-meta);
-  font-size:calc(var(--ayah-font-meta) * 0.94);
+  font-size:calc(var(--ayah-font-meta) * 1.02);
+  font-weight:700;
   line-height:1;
   display:grid;
   place-items:center;
   text-align:center;
   cursor:pointer;
+  box-shadow:
+    inset 0 0 0 var(--u1h) var(--c-w-06),
+    0 0 0 calc(var(--glow-ring) * 1.05) var(--c-a-18),
+    0 0 calc(var(--glow-soft) * 0.90) var(--c-a-35);
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
 }
 
 .hifzUnhideBtn:hover{
-  background:var(--surah-topbar-mode-bg-hover);
+  border-color:var(--c-a-55);
+  box-shadow:
+    inset 0 0 0 var(--u1h) var(--c-w-10),
+    0 0 0 calc(var(--glow-ring) * 1.15) var(--c-a-25),
+    0 0 calc(var(--glow-soft) * 1.05) var(--c-a-45);
+}
+
+.hifzUnhideBtn:active{
+  transform:translateY(var(--u1h));
+}
+
+.hifzWriteStageBox{
+  display:grid;
+  gap:0;
+}
+
+.hifzWriteInputShell{
+  position:relative;
+  min-height:calc(var(--stage-h) * 0.106);
+  border-radius:calc(var(--stage-h) * 0.012);
+  border:var(--u1h) solid var(--c-a-25);
+  background:var(--c-w-04);
+  overflow:hidden;
+  cursor:text;
+  box-shadow:
+    inset 0 0 0 var(--u1h) var(--c-w-06),
+    0 0 0 calc(var(--glow-ring) * 1.00) var(--c-a-12);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background 160ms ease;
+}
+
+.hifzWriteInput{
+  position:absolute;
+  inset:0;
+  z-index:2;
+  width:100%;
+  height:100%;
+  border:0;
+  outline:0;
+  background:transparent;
+  color:transparent;
+  -webkit-text-fill-color:transparent;
+  caret-color:transparent;
+  font-family:var(--font-ar);
+  font-size:calc(var(--ayah-font-ar) * 0.88);
+  line-height:1.45;
+  direction:rtl;
+  padding:
+    calc(var(--stage-h) * 0.014)
+    calc(var(--stage-w) * 0.012)
+    calc(var(--stage-h) * 0.032)
+    calc(var(--stage-w) * 0.012);
+}
+
+.hifzWriteInputView{
+  position:relative;
+  z-index:1;
+  min-height:calc(var(--stage-h) * 0.106);
+  display:grid;
+  align-items:center;
+  padding:
+    calc(var(--stage-h) * 0.014)
+    calc(var(--stage-w) * 0.012)
+    calc(var(--stage-h) * 0.032)
+    calc(var(--stage-w) * 0.012);
+  pointer-events:none;
+}
+.hifzWriteInputShell:focus-within{
+  border-color:var(--c-a-65);
+  box-shadow:
+    inset 0 0 0 var(--u1h) var(--c-w-10),
+    0 0 0 calc(var(--glow-ring) * 1.15) var(--c-a-25),
+    0 0 calc(var(--glow-soft) * 0.78) var(--c-a-35);
+}
+
+.hifzWriteInputShell.is-flash-bad{
+  border-color:var(--c-d-95);
+  box-shadow:
+    inset 0 0 0 var(--u1h) rgba(var(--rgb-white),0.08),
+    0 0 0 calc(var(--glow-ring) * 1.15) var(--c-d-25),
+    0 0 calc(var(--glow-soft) * 0.72) var(--c-d-25);
+  animation:hifzWriteShellBadFlash 500ms ease;
+}
+
+.hifzWriteInputShell.is-result-good{
+  border-color:rgba(var(--rgb-ok),0.95);
+  box-shadow:
+    inset 0 0 0 var(--u1h) rgba(var(--rgb-white),0.10),
+    0 0 0 calc(var(--glow-ring) * 1.20) rgba(var(--rgb-ok),0.28),
+    0 0 calc(var(--glow-soft) * 0.92) rgba(var(--rgb-ok),0.34);
+}
+
+.hifzWriteInputShell.is-result-bad{
+  border-color:var(--c-d-95);
+  box-shadow:
+    inset 0 0 0 var(--u1h) rgba(var(--rgb-white),0.08),
+    0 0 0 calc(var(--glow-ring) * 1.20) var(--c-d-25),
+    0 0 calc(var(--glow-soft) * 0.92) var(--c-d-25);
+}
+
+
+.hifzWriteTextGhost,
+.hifzWriteTextReveal{
+  grid-area:1 / 1;
+  display:block;
+  font-family:var(--font-ar);
+  font-size:calc(var(--ayah-font-ar) * 0.88);
+  line-height:1.45;
+  letter-spacing:0;
+  white-space:pre-wrap;
+  word-break:normal;
+  overflow-wrap:normal;
+  text-align:right;
+  direction:rtl;
+}
+
+.hifzWriteTextGhost{
+  opacity:0;
+  pointer-events:none;
+  user-select:none;
+}
+
+.hifzWriteTextReveal{
+  color:var(--color-ar-text);
+  pointer-events:none;
+  user-select:none;
+}
+
+.hifzWriteInputHint{
+  grid-area:1 / 1;
+  place-self:center;
+  color:var(--color-text-muted);
+  font-family:var(--font-meta);
+  font-size:calc(var(--ayah-font-meta) * 0.92);
+  font-weight:600;
+  line-height:1.1;
+  text-align:center;
+}
+
+.hifzWriteWrongGhost{
+  grid-area:1 / 1;
+  place-self:center;
+  color:rgb(var(--rgb-danger));
+  font-family:var(--font-ar);
+  font-size:calc(var(--ayah-font-ar) * 0.88);
+  line-height:1.1;
+  text-align:center;
+  animation:hifzWriteWrongGhostFlash 500ms ease;
+}
+
+.hifzWriteWrongGhost.is-space{
+  display:inline-block;
+  min-width:calc(var(--stage-w) * 0.014);
+  min-height:calc(var(--stage-h) * 0.028);
+  border-radius:var(--round-pill);
+  background:rgba(var(--rgb-danger),0.22);
+  box-shadow:
+    0 0 calc(var(--u6h) * 0.65) rgba(var(--rgb-danger),0.28);
+}
+
+.hifzWriteErrorStack{
+  position:relative;
+  display:inline-flex;
+  align-items:flex-end;
+  justify-content:center;
+  line-height:1;
+  vertical-align:baseline;
+  padding-top:calc(var(--u12h) * 1.05);
+}
+
+.hifzWriteErrorStack.is-space{
+  min-width:calc(var(--stage-w) * 0.014);
+}
+
+.hifzWriteErrorStackBase{
+  color:var(--color-ar-text);
+  display:inline-flex;
+  align-items:flex-end;
+  justify-content:center;
+  line-height:1;
+}
+
+.hifzWriteErrorStackBase.is-space{
+  display:inline-block;
+  min-width:calc(var(--stage-w) * 0.014);
+}
+
+.hifzWriteTextErrorInline{
+  position:absolute;
+  left:50%;
+  bottom:calc(100% - calc(var(--u6h) * 1.7));
+  transform:translateX(-50%);
+  color:rgb(var(--rgb-danger));
+  font-size:0.56em;
+  line-height:1;
+  white-space:nowrap;
+  pointer-events:none;
+  z-index:1;
+  text-shadow:
+    0 0 calc(var(--u6h) * 0.45) rgba(var(--rgb-danger),0.28);
+}
+
+.hifzWriteTextErrorInline.is-space{
+  display:inline-block;
+  min-width:calc(var(--stage-w) * 0.010);
+  min-height:calc(var(--stage-h) * 0.010);
+  border-radius:var(--round-pill);
+  background:rgba(var(--rgb-danger),0.22);
+  box-shadow:
+    0 0 calc(var(--u6h) * 0.65) rgba(var(--rgb-danger),0.28);
+}
+
+.hifzWriteTextFlash{
+  color:rgb(var(--rgb-ok));
+  animation:hifzWriteGoodFlash 500ms ease;
+}
+
+.hifzWriteTextFlash.is-space{
+  display:inline-block;
+  min-width:calc(var(--stage-w) * 0.014);
+  border-radius:var(--round-pill);
+  background:rgba(var(--rgb-ok),0.22);
+  box-shadow:
+    0 0 calc(var(--u6h) * 0.65) rgba(var(--rgb-ok),0.28);
+}
+
+
+
+.hifzWriteCaret{
+  display:inline-block;
+  width:max(var(--u2w), calc(var(--stage-w) * 0.0018));
+  min-width:max(var(--u2w), calc(var(--stage-w) * 0.0018));
+  height:calc(var(--ayah-font-ar) * 0.88);
+  vertical-align:calc(var(--stage-h) * -0.003);
+  background:var(--color-accent);
+  border-radius:var(--round-pill);
+  box-shadow:
+    0 0 calc(var(--u6h) * 0.55) var(--c-a-35);
+  animation:hifzWriteCaretBlink 1000ms steps(1,end) infinite;
+}
+
+.hifzWriteMetaRow{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:calc(var(--stage-w) * 0.008);
+}
+
+.hifzWriteResultBadgeInline{
+  min-height:calc(var(--stage-h) * 0.030);
+  padding-inline:calc(var(--stage-w) * 0.010);
+  border-radius:var(--round-pill);
+  font-family:var(--font-meta);
+  font-size:calc(var(--ayah-font-meta) * 0.84);
+  font-weight:700;
+  line-height:1;
+  display:inline-grid;
+  place-items:center;
+  box-shadow:
+    inset 0 0 0 var(--u1h) rgba(var(--rgb-white),0.10);
+  animation:hifzWriteResultBadgeIn 220ms ease;
+}
+
+.hifzWriteResultBadgeInline.is-good{
+  color:rgb(var(--rgb-ok));
+  background:rgba(var(--rgb-ok),0.14);
+  border:var(--u1h) solid rgba(var(--rgb-ok),0.34);
+}
+
+.hifzWriteResultBadgeInline.is-bad{
+  color:rgb(var(--rgb-danger));
+  background:rgba(var(--rgb-danger),0.14);
+  border:var(--u1h) solid rgba(var(--rgb-danger),0.34);
+}
+
+@keyframes hifzWriteResultBadgeIn{
+  0%{
+    opacity:0;
+    transform:translateY(calc(var(--stage-h) * 0.004)) scale(0.96);
+  }
+  100%{
+    opacity:1;
+    transform:translateY(0) scale(1);
+  }
+}
+
+@keyframes hifzWriteCaretBlink{
+  0%,49%{
+    opacity:1;
+  }
+  50%,100%{
+    opacity:0;
+  }
+}
+
+@keyframes hifzWriteGoodFlash{
+  0%{
+    color:var(--color-ar-text);
+    text-shadow:none;
+  }
+  50%{
+    color:rgb(var(--rgb-ok));
+    text-shadow:
+      0 0 calc(var(--u6h) * 0.95) rgba(var(--rgb-ok),0.55),
+      0 0 calc(var(--u14h) * 0.65) rgba(var(--rgb-ok),0.32);
+  }
+  100%{
+    color:var(--color-ar-text);
+    text-shadow:
+      0 0 calc(var(--u6h) * 0.45) rgba(var(--rgb-ok),0.18);
+  }
+}
+
+@keyframes hifzWriteWrongGhostFlash{
+  0%{
+    opacity:0;
+    transform:scale(0.96);
+  }
+  25%{
+    opacity:1;
+    transform:scale(1);
+  }
+  100%{
+    opacity:0;
+    transform:scale(1.03);
+  }
+}
+
+@keyframes hifzWriteShellBadFlash{
+  0%{
+    box-shadow:
+      inset 0 0 0 var(--u1h) rgba(var(--rgb-white),0.08),
+      0 0 0 calc(var(--glow-ring) * 1.15) var(--c-d-18),
+      0 0 calc(var(--glow-soft) * 0.20) transparent;
+  }
+  50%{
+    box-shadow:
+      inset 0 0 0 var(--u1h) rgba(var(--rgb-white),0.10),
+      0 0 0 calc(var(--glow-ring) * 1.25) var(--c-d-25),
+      0 0 calc(var(--glow-soft) * 0.82) var(--c-d-25);
+  }
+  100%{
+    box-shadow:
+      inset 0 0 0 var(--u1h) rgba(var(--rgb-white),0.08),
+      0 0 0 calc(var(--glow-ring) * 1.15) var(--c-d-25),
+      0 0 calc(var(--glow-soft) * 0.72) var(--c-d-25);
+  }
+}
+
+html[data-theme="light"] .hifzWriteInputShell{
+  background:rgba(var(--rgb-ink),0.04);
+  border-color:rgba(var(--rgb-ink),0.14);
+}
+
+html[data-theme="light"] .hifzWriteInputHint{
+  color:rgba(var(--rgb-ink),0.52);
+}
+
+.hifzRepeatSelectWrap{
+  position:relative;
+  flex:0 0 auto;
+  width: calc(var(--stage-w) * 0.10);
 }
 
 .hifzRepeatSelect{
@@ -7689,23 +9238,37 @@ html.rotate-phone .hifzRangeInput{
   line-height: 1;
   box-sizing: border-box;
   outline: none;
-  width: calc(var(--stage-w) * 0.145);
+  width: 100%;
   padding-inline:
     calc(var(--stage-w) * 0.010)
     calc(var(--stage-w) * 0.028);
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
-  background-image:
-    linear-gradient(45deg, transparent 50%, currentColor 50%),
-    linear-gradient(135deg, currentColor 50%, transparent 50%);
-  background-position:
-    calc(100% - calc(var(--stage-w) * 0.018)) calc(50% - calc(var(--stage-h) * 0.002)),
-    calc(100% - calc(var(--stage-w) * 0.013)) calc(50% - calc(var(--stage-h) * 0.002));
-  background-size:
-    calc(var(--stage-w) * 0.006) calc(var(--stage-h) * 0.006),
-    calc(var(--stage-w) * 0.006) calc(var(--stage-h) * 0.006);
-  background-repeat: no-repeat;
+  background-image: none;
+  cursor:pointer;
+}
+
+.hifzRepeatArrow{
+  position:absolute;
+  top:50%;
+  right:calc(var(--stage-w) * 0.0105);
+  transform:translateY(calc(-50% - (var(--u1h) * 0.15)));
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:calc(var(--stage-w) * 0.012);
+  min-width:calc(var(--stage-w) * 0.012);
+  line-height:1;
+  font-size:calc(var(--ayah-font-meta) * 0.62);
+  opacity:0.92;
+  color: var(--color-text-muted);
+  text-shadow:
+    calc(var(--u1w) * -1) 0 0 rgba(var(--rgb-black),0.95),
+    var(--u1w) 0 0 rgba(var(--rgb-black),0.95),
+    0 calc(var(--u1h) * -1) 0 rgba(var(--rgb-black),0.95),
+    0 var(--u1h) 0 rgba(var(--rgb-black),0.95);
+  pointer-events:none;
 }
 
 .hifzRepeatSelect:focus{
@@ -7713,5 +9276,485 @@ html.rotate-phone .hifzRangeInput{
   box-shadow:
     0 0 0 var(--glow-ring) rgba(var(--rgb-accent),0.20),
     0 0 var(--glow-soft) var(--c-a-35);
+}
+
+.hifzBadDrop{
+  position:relative;
+  flex:0 0 auto;
+}
+
+.hifzBadDropBtn{
+  height: var(--jump-h);
+  min-width: calc(var(--stage-w) * 0.165);
+  border-radius: var(--jump-r);
+  border: var(--u1h) solid var(--color-line);
+  background: var(--surah-topbar-mode-bg);
+  color: var(--color-text);
+  font-family: var(--font-meta);
+  font-size: calc(var(--ayah-font-meta) * 0.84);
+  line-height: 1;
+  box-sizing: border-box;
+  display:inline-flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap: calc(var(--stage-w) * 0.0065);
+  padding-inline:
+    calc(var(--stage-w) * 0.009)
+    calc(var(--stage-w) * 0.008);
+  cursor:pointer;
+  transition:
+    transform 120ms ease,
+    box-shadow 140ms ease,
+    border-color 140ms ease,
+    background 140ms ease;
+  z-index: 4000000;
+}
+
+.hifzBadDropBtn:hover,
+.hifzBadDrop.is-open .hifzBadDropBtn{
+  background: var(--surah-topbar-mode-bg-hover);
+  border-color: var(--c-a-65);
+  box-shadow:
+    0 0 0 var(--glow-ring) rgba(var(--rgb-accent),0.20),
+    0 0 var(--glow-soft) var(--c-a-35);
+  z-index: 4000000;
+}
+
+.hifzBadDropBtn:active{
+  transform: scale(0.98);
+}
+
+.hifzBadDropBtnLabel{
+  display:inline-flex;
+  align-items:center;
+  line-height:1;
+  white-space:nowrap;
+  font-size: 0.96em;
+}
+
+.hifzBadDropBtnCount{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:auto;
+  height:auto;
+  padding:0;
+  margin-left: calc(var(--stage-w) * 0.0015);
+  border:0;
+  border-radius:0;
+  background:transparent;
+  color: rgb(var(--rgb-danger));
+  font-size: calc(var(--ayah-font-meta) * 0.74);
+  font-weight: 560;
+  line-height:1;
+  flex: 0 0 auto;
+  text-shadow:
+    calc(var(--u1w) * -1) 0 0 rgba(var(--rgb-black),0.98),
+    var(--u1w) 0 0 rgba(var(--rgb-black),0.98),
+    0 calc(var(--u1h) * -1) 0 rgba(var(--rgb-black),0.98),
+    0 var(--u1h) 0 rgba(var(--rgb-black),0.98);
+}
+
+
+.hifzBadDropBtnArrow{
+  margin-left:auto;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  line-height:1;
+  font-size: calc(var(--ayah-font-meta) * 0.63);
+  color: var(--color-text-muted);
+  transform: translateY(calc(var(--u1h) * -0.15));
+  flex: 0 0 auto;
+}
+
+.hifzBadDropMenu{
+  position:absolute;
+  top: calc(100% + calc(var(--stage-h) * 0.006));
+  right:0;
+  width: calc(var(--stage-w) * 0.175);
+  max-height: calc(var(--stage-h) * 0.360);
+  overflow:auto;
+  display:none;
+  padding: calc(var(--stage-h) * 0.006);
+  border-radius: calc(var(--stage-h) * 0.010);
+  border: var(--u1h) solid var(--color-line);
+  background: var(--color-bg-stage);
+  box-shadow:
+    0 calc(var(--u8h) * 1.10) calc(var(--u30h) * 0.85) var(--c-black-35),
+    0 0 0 var(--u1h) var(--c-w-06);
+  z-index: 4000000;
+}
+
+.hifzBadDrop.is-open .hifzBadDropMenu{
+  display:block;
+  z-index: 4000000;
+}
+
+.hifzBadDropHead{
+  padding:
+    calc(var(--stage-h) * 0.006)
+    calc(var(--stage-w) * 0.008)
+    calc(var(--stage-h) * 0.008);
+  color: var(--color-text-muted);
+  font-family: var(--font-meta);
+  font-size: calc(var(--ayah-font-meta) * 0.82);
+  font-weight: 700;
+  text-align:right;
+  z-index: 4000000;
+}
+
+.hifzBadDropItem{
+  width:100%;
+  min-height: calc(var(--stage-h) * 0.044);
+  padding:
+    calc(var(--stage-h) * 0.008)
+    calc(var(--stage-w) * 0.008);
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  border:0;
+  border-top: var(--u1h) solid var(--c-w-06);
+  background:transparent;
+  color:var(--color-text);
+  font-family:var(--font-meta);
+  font-size: calc(var(--ayah-font-meta) * 0.92);
+  text-align:right;
+  cursor:pointer;
+  z-index: 4000000;
+}
+
+.hifzBadDropItem:first-of-type{
+  border-top:0;
+}
+
+.hifzBadDropItem:hover{
+  background: var(--c-w-06);
+  color: rgb(var(--rgb-danger));
+}
+
+.hifzBadDropItemRef{
+  display:inline-flex;
+  align-items:center;
+  line-height:1.1;
+}
+
+.hifzBadDropEmpty{
+  padding:
+    calc(var(--stage-h) * 0.010)
+    calc(var(--stage-w) * 0.008);
+  color: var(--color-text-muted);
+  font-family: var(--font-meta);
+  font-size: calc(var(--ayah-font-meta) * 0.88);
+  line-height: 1.35;
+  text-align:right;
+}
+
+html[data-theme="light"] .hifzBadDropMenu{
+  box-shadow:
+    0 calc(var(--u8h) * 1.05) calc(var(--u30h) * 0.70) var(--c-black-18),
+    0 0 0 var(--u1h) var(--c-black-03);
+}
+
+.hifzSurahSummaryCard{
+  min-height: calc(var(--stage-h) * 0.105);
+  padding:
+    calc(var(--stage-h) * 0.008)
+    calc(var(--stage-w) * 0.008)
+    calc(var(--stage-h) * 0.010)
+    calc(var(--stage-w) * 0.008);
+}
+
+
+
+
+.hifzSurahSummaryMount{
+  margin-top: calc(var(--stage-h) * 0.00053);
+}
+
+.qView[data-mode="suraCards"] .hifzSurahSummaryMount{
+  margin-top:auto;
+  padding-top:calc(var(--stage-h) * 0.00053);
+}
+
+.mView .hifzSurahSummaryMount{
+  margin-top:auto;
+  padding-top:calc(var(--stage-h) * 0.0164); /* HIER nur Mushaf-Abstand unten */
+}
+
+.hifzSurahSummaryCard{
+  min-height: calc(var(--stage-h) * 0.170);
+  padding:
+    calc(var(--stage-h) * 0.012)
+    calc(var(--stage-w) * 0.010)
+    calc(var(--stage-h) * 0.014)
+    calc(var(--stage-w) * 0.010);
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--stage-h) * 0.010);
+}
+
+.hifzSurahSummaryHeader{
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(var(--stage-h) * 0.022);
+}
+
+.hifzSurahSummaryTitle{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  text-align: center;
+  font-family: var(--font-meta);
+  font-size: calc(var(--ayah-font-meta) * 0.96);
+  font-weight: 700;
+  line-height: 1.1;
+  opacity: 0.92;
+  letter-spacing: calc(var(--stage-w) * 0.00045);
+}
+
+.hifzSurahSummaryGrid{
+  display: grid;
+  grid-template-columns: repeat(114, minmax(0, 1fr));
+  gap: 0;
+  border: var(--u1h) solid rgba(var(--rgb-white),0.065);
+  border-radius: calc(var(--stage-h) * 0.008);
+  overflow: visible;
+  padding-bottom: calc(var(--stage-h) * 0.026);
+}
+
+.hifzSurahSummaryCell{
+  position: relative;
+  min-height: calc(var(--stage-h) * 0.118);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(var(--rgb-white),0.020);
+  box-shadow:
+    inset var(--u1w) 0 0 rgba(var(--rgb-white),0.065);
+  overflow: visible;
+  isolation: isolate;
+  cursor: pointer;
+}
+
+.hifzSurahSummaryCell::before{
+  content:"";
+  position:absolute;
+  left:0;
+  right:0;
+  bottom:0;
+  height: calc(var(--surah-progress, 0) * 100%);
+  z-index:2;
+  opacity:0;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(var(--rgb-ok),1.00) 0%,
+      rgba(var(--rgb-ok),0.94) 14%,
+      rgba(var(--rgb-ok),0.80) 38%,
+      rgba(var(--rgb-ok),0.54) 64%,
+      rgba(var(--rgb-ink),0.90) 100%
+    );
+  border-top:none;
+  box-shadow:none;
+  pointer-events:none;
+}
+
+.hifzSurahSummaryCell.is-progress::before,
+.hifzSurahSummaryCell.is-mastered::before{
+  opacity:1;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(var(--rgb-ok),1.00) 0%,
+      rgba(var(--rgb-ok),0.94) 14%,
+      rgba(var(--rgb-ok),0.80) 38%,
+      rgba(var(--rgb-ok),0.54) 64%,
+      rgba(var(--rgb-ink),0.90) 100%
+    );
+  border-top: var(--u1h) solid rgba(var(--rgb-black),1);
+  box-shadow: none;
+}
+
+.hifzSurahSummaryCell.is-mastered::before{
+  background:
+    linear-gradient(
+      180deg,
+      rgba(var(--rgb-ok),1.00) 0%,
+      rgba(var(--rgb-ok),0.97) 12%,
+      rgba(var(--rgb-ok),0.86) 38%,
+      rgba(var(--rgb-ok),0.60) 64%,
+      rgba(var(--rgb-ink),0.94) 100%
+    );
+  border-top: var(--u1h) solid rgba(var(--rgb-black),1);
+  box-shadow: none;
+}
+
+.hifzSurahSummaryCellInner{
+  position: relative;
+  z-index: 3;
+  min-height: inherit;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hifzSurahSummaryNo{
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--stage-h) * -0.018);
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  max-width: calc(100% + (var(--u2w) * 4));
+  padding: 0;
+  font-family: var(--font-meta);
+  font-size: calc(var(--stage-h) * 0.0100);
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+  opacity: 0.90;
+  pointer-events: none;
+  text-shadow: 0 0 calc(var(--u6h) * 0.45) var(--c-black-25);
+  transform: translateX(-50%) rotate(-90deg);
+  transform-origin: center center;
+}
+
+.hifzSurahSummaryCell:hover .hifzSurahSummaryNo{
+  color: var(--color-text);
+  opacity: 1;
+}
+
+.hifzSurahSummaryCell.is-progress .hifzSurahSummaryNo,
+.hifzSurahSummaryCell.is-mastered .hifzSurahSummaryNo{
+  color: var(--c-w-98);
+  opacity: 0.98;
+}
+
+html[data-theme="light"] .hifzSurahSummaryGrid{
+  border-color: rgba(var(--rgb-ink),0.12);
+  background: linear-gradient(
+    180deg,
+    rgba(var(--rgb-white),0.82) 0%,
+    rgba(var(--rgb-white),0.64) 100%
+  );
+}
+
+html[data-theme="light"] .hifzSurahSummaryCell{
+  background: rgba(var(--rgb-ink),0.030);
+  box-shadow:
+    inset 0 0 0 var(--u1h) rgba(var(--rgb-ink),0.16),
+    inset var(--u1w) 0 0 rgba(var(--rgb-ink),0.16);
+}
+
+html[data-theme="light"] .hifzSurahSummaryCell::before{
+  background:
+    linear-gradient(
+      180deg,
+      rgba(var(--rgb-ok),1.00) 0%,
+      rgba(var(--rgb-ok),0.94) 14%,
+      rgba(var(--rgb-ok),0.80) 38%,
+      rgba(var(--rgb-ok),0.54) 64%,
+      rgba(var(--rgb-ink),0.90) 100%
+    );
+}
+
+html[data-theme="light"] .hifzSurahSummaryCell.is-progress::before,
+html[data-theme="light"] .hifzSurahSummaryCell.is-mastered::before{
+  border-top: var(--u1h) solid rgba(var(--rgb-ink),0.46);
+  box-shadow:
+    inset 0 calc(var(--u2h) * -1.20) calc(var(--u14h) * 1.18) rgba(var(--rgb-ok),0.52),
+    inset 0 0 calc(var(--u14h) * 1.45) rgba(var(--rgb-ok),0.28),
+    0 calc(var(--u1h) * -0.95) calc(var(--u10h) * 1.00) rgba(var(--rgb-ok),0.34),
+    0 0 calc(var(--glow-soft) * 0.22) rgba(var(--rgb-ok),0.18);
+}
+
+html[data-theme="light"] .hifzSurahSummaryCell.is-mastered::before{
+  background:
+    linear-gradient(
+      180deg,
+      rgba(var(--rgb-ok),1.00) 0%,
+      rgba(var(--rgb-ok),0.97) 12%,
+      rgba(var(--rgb-ok),0.86) 38%,
+      rgba(var(--rgb-ok),0.60) 64%,
+      rgba(var(--rgb-ink),0.94) 100%
+    );
+  border-top: var(--u1h) solid rgba(var(--rgb-ink),0.52);
+  box-shadow:
+    inset 0 calc(var(--u2h) * -1.28) calc(var(--u14h) * 1.24) rgba(var(--rgb-ok),0.58),
+    inset 0 0 calc(var(--u14h) * 1.55) rgba(var(--rgb-ok),0.32),
+    0 calc(var(--u1h) * -1.02) calc(var(--u10h) * 1.06) rgba(var(--rgb-ok),0.40),
+    0 0 calc(var(--glow-soft) * 0.24) rgba(var(--rgb-ok),0.22);
+}
+
+html[data-theme="light"] .hifzSurahSummaryNo{
+  color: rgba(var(--rgb-ink),0.62);
+  text-shadow: none;
+}
+
+html[data-theme="light"] .hifzSurahSummaryCell:hover .hifzSurahSummaryNo{
+  color: rgba(var(--rgb-ink),0.90);
+}
+
+html[data-theme="light"] .hifzSurahSummaryCell.is-progress .hifzSurahSummaryNo,
+html[data-theme="light"] .hifzSurahSummaryCell.is-mastered .hifzSurahSummaryNo{
+  color: rgba(var(--rgb-ink),0.96);
+}
+
+/* =========================
+   HIFZ STAGE DROPDOWN FINAL OVERRIDE
+   - harte Endfassung gegen doppelte alte Blöcke
+   ========================= */
+
+.hifzStageDropMenu{
+  gap:0 !important;
+  padding:0 !important;
+  border-radius:0 !important;
+  overflow:hidden !important;
+}
+
+.hifzStageDropItem{
+  gap:0 !important;
+  margin:0 !important;
+  border-radius:0 !important;
+  border:0 !important;
+  border-top:var(--u1h) solid var(--c-w-10) !important;
+}
+
+.hifzStageDropItem:first-child{
+  border-top:0 !important;
+}
+
+.hifzStageDropItemTitle,
+.hifzStageDropItemPct{
+  border-radius:0 !important;
+}
+
+.hifzStageDropItemTitle::before,
+.hifzStageDropItemPct::before{
+  content:none !important;
+}
+
+html[data-theme="light"] .hifzStageDropBtn,
+html[data-theme="light"] .hifzStageDropBtnLabel,
+html[data-theme="light"] .hifzStageDropBtnArrow,
+html[data-theme="light"] .hifzStageDropItem,
+html[data-theme="light"] .hifzStageDropItemTitle,
+html[data-theme="light"] .hifzStageDropItemDesc,
+html[data-theme="light"] .hifzStageDropItemPct{
+  color:rgba(var(--rgb-ink),0.94) !important;
+  text-shadow:none !important;
+}
+
+html[data-theme="light"] .hifzStageDropItem{
+  background:rgba(var(--rgb-ink),0.045) !important;
 }
 

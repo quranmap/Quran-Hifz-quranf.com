@@ -180,8 +180,8 @@ recalc();
    - verhindert “Statusbar ohne Style -> Welcome -> Style” Flash
    - ✅ Fix: echte Defaults (Style + Surface) passend zu den richtigen Listen
 */
-const DEFAULT_STYLE_ID   = "style-082"; // Blue Slate 082 (STYLE_THEMES)  :contentReference[oaicite:5]{index=5}
-const DEFAULT_SURFACE_ID = "style-070"; // Blue/Grey 070 (SURFACE_THEMES_200) :contentReference[oaicite:6]{index=6}
+const DEFAULT_STYLE_ID = "style-082";   // Blue Slate 082
+const DEFAULT_SURFACE_ID = "style-070"; // Blue/Grey 070
 
 try{
   const saved = loadStyleThemeId();
@@ -663,6 +663,12 @@ function __collectLocalAccountState(){
   let favGroupCollapsed = {};
   let habashiLabels = {};
 
+  // Hifz
+  let hifzResults = {};
+  let hifzRepeatTarget = 5;
+  let hifzStage = "1";
+  let hifzRange = "5-10";
+
   // ---- base keys
   try { bookmarks = JSON.parse(localStorage.getItem("q_bookmarks_v1") || "[]"); } catch { bookmarks = []; }
   try { notes = JSON.parse(localStorage.getItem("q_notes_v1") || "{}"); } catch { notes = {}; }
@@ -678,6 +684,12 @@ function __collectLocalAccountState(){
   try { favGroupMap = JSON.parse(localStorage.getItem("q_fav_group_map_v1") || "{}"); } catch { favGroupMap = {}; }
   try { favGroupCollapsed = JSON.parse(localStorage.getItem("q_fav_group_collapsed_v1") || "{}"); } catch { favGroupCollapsed = {}; }
   try { habashiLabels = JSON.parse(localStorage.getItem("q_habashi_labels_v1") || "{}"); } catch { habashiLabels = {}; }
+
+  // ---- hifz keys
+  try { hifzResults = JSON.parse(localStorage.getItem(LS_HIFZ_RESULTS) || "{}"); } catch { hifzResults = {}; }
+  try { hifzRepeatTarget = Number(localStorage.getItem(LS_HIFZ_REPEAT_TARGET) || 5); } catch { hifzRepeatTarget = 5; }
+  try { hifzStage = String(localStorage.getItem(LS_HIFZ_STAGE) || "1").trim() || "1"; } catch { hifzStage = "1"; }
+  try { hifzRange = String(localStorage.getItem(LS_HIFZ_RANGE) || "5-10").trim() || "5-10"; } catch { hifzRange = "5-10"; }
 
   // ---- sanitize base
   if (!Array.isArray(bookmarks)) bookmarks = [];
@@ -738,6 +750,45 @@ function __collectLocalAccountState(){
     cleanHabashiLabels[kk] = vv;
   }
 
+  // ---- sanitize hifz
+  const cleanHifzResults = {};
+  const rawHifz = __normalizeHifzResultsMap(hifzResults);
+
+  for (const ref of Object.keys(rawHifz)){
+    const safeRef = String(ref || "").trim();
+    if (!/^\d+:\d+$/.test(safeRef)) continue;
+
+    const row = rawHifz[ref];
+    if (!row || typeof row !== "object") continue;
+
+    const cleanRow = {};
+    for (const stageKey of Object.keys(row)){
+      const safeStage = String(stageKey || "").trim();
+      if (!/^(10|[1-9])$/.test(safeStage)) continue;
+
+      const cell = row[stageKey];
+      if (!cell || typeof cell !== "object") continue;
+
+      const state = String(cell.state || "neutral").trim().toLowerCase();
+      const goodCount = Math.max(0, Number(cell.goodCount) || 0);
+
+      cleanRow[safeStage] = {
+        state: (state === "good" || state === "bad") ? state : "neutral",
+        goodCount
+      };
+    }
+
+    if (Object.keys(cleanRow).length) {
+      cleanHifzResults[safeRef] = cleanRow;
+    }
+  }
+
+  if (!Number.isFinite(hifzRepeatTarget) || hifzRepeatTarget < 1) hifzRepeatTarget = 5;
+  hifzRepeatTarget = Math.min(100, Math.floor(hifzRepeatTarget));
+
+  hifzStage = /^(10|[1-9])$/.test(String(hifzStage || "")) ? String(hifzStage) : "1";
+  hifzRange = String(hifzRange || "").trim() || "5-10";
+
   // active preset sanitize
   favActivePreset = String(favActivePreset || "").trim() || "actual";
 
@@ -755,6 +806,12 @@ function __collectLocalAccountState(){
     favGroupMap: cleanGroupMap,
     favGroupCollapsed: cleanCollapsed,
     habashiLabels: cleanHabashiLabels,
+
+    // ✅ HIFZ
+    hifzResults: cleanHifzResults,
+    hifzRepeatTarget,
+    hifzStage,
+    hifzRange,
   };
 }
 
@@ -767,6 +824,11 @@ function __applyAccountStateToLocal(state){
 
     // ✅ NEW: 2nd theme button (surface)
     const sf = (typeof state?.surfaceId === "string") ? String(state.surfaceId) : "";
+
+    const hasHifzResults = Object.prototype.hasOwnProperty.call(state || {}, "hifzResults");
+    const hasHifzRepeatTarget = Object.prototype.hasOwnProperty.call(state || {}, "hifzRepeatTarget");
+    const hasHifzStage = Object.prototype.hasOwnProperty.call(state || {}, "hifzStage");
+    const hasHifzRange = Object.prototype.hasOwnProperty.call(state || {}, "hifzRange");
 
     if (b) localStorage.setItem("q_bookmarks_v1", JSON.stringify(b));
     if (n) localStorage.setItem("q_notes_v1", JSON.stringify(n));
@@ -792,6 +854,31 @@ function __applyAccountStateToLocal(state){
     }
     if (state?.favGroupCollapsed && typeof state.favGroupCollapsed === "object") {
       localStorage.setItem(LS_FAV_GROUP_COLLAPSED, JSON.stringify(state.favGroupCollapsed));
+    }
+
+    // ✅ HIFZ
+    if (hasHifzResults) {
+      const cleanResults = __normalizeHifzResultsMap(state?.hifzResults);
+      __hifzResultsCache = cleanResults;
+      localStorage.setItem(LS_HIFZ_RESULTS, JSON.stringify(cleanResults));
+    }
+
+    if (hasHifzRepeatTarget) {
+      const nTarget = Math.max(1, Math.min(100, Number(state?.hifzRepeatTarget) || 5));
+      __hifzRepeatTargetCache = nTarget;
+      localStorage.setItem(LS_HIFZ_REPEAT_TARGET, String(nTarget));
+    }
+
+    if (hasHifzStage) {
+      const safeStage = /^(10|[1-9])$/.test(String(state?.hifzStage || "")) ? String(state.hifzStage) : "1";
+      hifzStageValue = safeStage;
+      localStorage.setItem(LS_HIFZ_STAGE, safeStage);
+    }
+
+    if (hasHifzRange) {
+      const safeRange = String(state?.hifzRange || "").trim() || "5-10";
+      hifzRangeValue = safeRange;
+      localStorage.setItem(LS_HIFZ_RANGE, safeRange);
     }
 
     // UI refresh hooks
@@ -4390,39 +4477,42 @@ function initRouter(defaultRef = "2:255") {
   const last = normalizeRef(persisted.lastRef);
   const def = normalizeRef(defaultRef) || defaultRef;
 
-  const start =
+  const startRaw =
     (fromUrl && getAyah(fromUrl)) ? fromUrl :
     (last && getAyah(last)) ? last :
     def;
 
-currentRef = start;
-const a0 = getAyah(start);
-if (a0) currentSurahInView = a0.surah;
-if (a0) setSurahContext(a0.surah);
+  const start = getHifzRangeBoundsForRef(startRaw).startRef;
 
-renderCurrent(start);
-persistNavState();
+  currentRef = start;
+  const a0 = getAyah(start);
+  if (a0) currentSurahInView = a0.surah;
+  if (a0) setSurahContext(a0.surah);
 
-window.addEventListener("hashchange", () => {
-  if (suppressHashRender) {
-    suppressHashRender = false;
-    return;
-  }
+  renderCurrent(start);
+  persistNavState();
 
-  // ✅ Wenn wir gerade in der Favoritenseite sind: erst raus (ohne extra render)
-  try { closeFavoritesPage?.({ silent: true }); } catch {}
+  window.addEventListener("hashchange", () => {
+    if (suppressHashRender) {
+      suppressHashRender = false;
+      return;
+    }
 
-  const r = getRefFromHash();
-  if (r && getAyah(r)) {
-currentRef = r;
-const a1 = getAyah(r);
-if (a1) currentSurahInView = a1.surah;
-if (a1) setSurahContext(a1.surah);
-try { window.__refreshSurahDropdown?.(); } catch(e) {}
-renderCurrent(r);
-persistNavState();
-  }
-});
+    // ✅ Wenn wir gerade in der Favoritenseite sind: erst raus (ohne extra render)
+    try { closeFavoritesPage?.({ silent: true }); } catch {}
+
+    const rRaw = getRefFromHash();
+    if (rRaw && getAyah(rRaw)) {
+      const r = getHifzRangeBoundsForRef(rRaw).startRef;
+      currentRef = r;
+      const a1 = getAyah(r);
+      if (a1) currentSurahInView = a1.surah;
+      if (a1) setSurahContext(a1.surah);
+      try { window.__refreshSurahDropdown?.(); } catch(e) {}
+      renderCurrent(r);
+      persistNavState();
+    }
+  });
 
   if (DBG.enabled) {
     window.__quranDebug = window.__quranDebug || {};
@@ -4853,19 +4943,27 @@ function _hideTip(tipEl){
   tipEl.classList.remove("is-show");
 }
 
-  function _showSuraTipAt(x, y, ref){
-    const a = getAyah(ref);
-    if (!a) return;
+function _showSuraTipAt(x, y, ref, { compactRefOnly = false } = {}){
+  const a = getAyah(ref);
+  if (!a) return;
 
-    const tr = _firstActiveTranslationText(ref);
+  if (compactRefOnly) {
     suraTip.innerHTML = `
       <div class="tipRef">${escTip(a.ref)}</div>
-      <div class="tipAr" dir="rtl" lang="ar">${a.textAr || ""}</div>
-      ${tr ? `<div class="tipTr">${escTip(tr)}</div>` : ``}
     `;
-
     _placeTip(suraTip, x, y);
+    return;
   }
+
+  const tr = _firstActiveTranslationText(ref);
+  suraTip.innerHTML = `
+    <div class="tipRef">${escTip(a.ref)}</div>
+    <div class="tipAr" dir="rtl" lang="ar">${a.textAr || ""}</div>
+    ${tr ? `<div class="tipTr">${escTip(tr)}</div>` : ``}
+  `;
+
+  _placeTip(suraTip, x, y);
+}
 
   function _hideSuraTip(){
     _hideTip(suraTip);
@@ -4876,44 +4974,207 @@ function _hideTip(tipEl){
   // =========================
   let _ticksSurah = 0;
 
-  function buildSuraTicks(surahNo){
-    if (!suraProgTicks) return;
+  function _getSuraProgRangeBounds(surahNo){
+    try{
+      const hifzVisible = !!document.querySelector(".hifzTrainTopBar, .hifzTestTopBar");
+      if (!hifzVisible) return { fromAyah: 0, toAyah: 0 };
 
-    const s = Number(surahNo || 0);
-    const meta = getSuraMeta(s);
-    if (!meta || !meta.ayahCount) {
-      suraProgTicks.innerHTML = "";
-      _ticksSurah = 0;
-      return;
+      const s = Number(surahNo || 0);
+      const refsRaw = (typeof getSuraRefs === "function") ? (getSuraRefs(s) || []) : [];
+      const rawRange = (typeof loadHifzRangeValue === "function")
+        ? String(loadHifzRangeValue() || "1-999").trim()
+        : "1-999";
+
+      const m = rawRange.match(/^(\d+)\s*-\s*(\d+)$/);
+
+      let fromAyah = 1;
+      let toAyah = Number(getSuraMeta(s)?.ayahCount || refsRaw.length || 1);
+
+      if (m) {
+        fromAyah = Math.max(1, Number(m[1]) || 1);
+        toAyah = Math.max(1, Number(m[2]) || fromAyah);
+      }
+
+      if (toAyah < fromAyah) {
+        const tmp = fromAyah;
+        fromAyah = toAyah;
+        toAyah = tmp;
+      }
+
+      const maxAyah = Number(getSuraMeta(s)?.ayahCount || refsRaw.length || 1);
+      fromAyah = Math.min(fromAyah, maxAyah);
+      toAyah = Math.min(toAyah, maxAyah);
+
+      return { fromAyah, toAyah };
+    }catch{
+      return { fromAyah: 0, toAyah: 0 };
     }
-
-    // nicht neu bauen, wenn gleiche Sura
-    if (_ticksSurah === s && suraProgTicks.childElementCount === meta.ayahCount) return;
-
-    _ticksSurah = s;
-    const n = Number(meta.ayahCount);
-
-    let html = "";
-    for (let i = 1; i <= n; i++){
-      const pct = (n <= 0) ? 0 : (i / n) * 100;
-      const ref = `${s}:${i}`;
-      html += `<button class="suraTick" type="button" style="left:${pct.toFixed(4)}%" data-ref="${ref}" aria-label="${ref}"></button>`;
-    }
-    suraProgTicks.innerHTML = html;
   }
 
-  window.__suraProgSetSurah = (s) => { try { buildSuraTicks(s); } catch {} };
-  try { buildSuraTicks(currentSurahInView || 1); } catch {}
+function syncSuraTickDecor(surahNo){
+  if (!suraProgTicks) return;
+
+  const isVisibleEl = (el) => {
+    if (!el) return false;
+    try{
+      const cs = getComputedStyle(el);
+      if (cs.display === "none" || cs.visibility === "hidden") return false;
+      if (el.offsetParent === null && cs.position !== "fixed") return false;
+    }catch{}
+    return true;
+  };
+
+  const isHifzTestMode = (() => {
+    try{
+      const qv = document.querySelector(".qView");
+      if (!isVisibleEl(qv)) return false;
+      return !!qv.querySelector(".hifzTestTopBar");
+    }catch{
+      return false;
+    }
+  })();
+
+  const isHifzTrainMode = (() => {
+    try{
+      const mv = document.querySelector(".mView");
+      if (!isVisibleEl(mv)) return false;
+      return !!mv.querySelector(".hifzTrainTopBar");
+    }catch{
+      return false;
+    }
+  })();
+
+  const stageForTicks = (typeof loadHifzStageValue === "function") ? loadHifzStageValue() : "1";
+  const hideRenderedRangeUi = isHifzTestMode && isHifzStageWithoutRenderedRangeUi(stageForTicks);
+
+  try{
+    if (statusbar){
+      statusbar.classList.toggle("is-hifz-test", isHifzTestMode);
+      statusbar.classList.toggle("is-hifz-train", isHifzTrainMode);
+      statusbar.classList.toggle("is-hifz-range-ui", isHifzTestMode || isHifzTrainMode);
+    }
+  }catch{}
+
+  const s = Number(surahNo || 0);
+  if (!s) return;
+
+  const bounds = _getSuraProgRangeBounds(s);
+  const fromAyah = hideRenderedRangeUi ? 0 : Number(bounds?.fromAyah || 0);
+  const toAyah = hideRenderedRangeUi ? 0 : Number(bounds?.toAyah || 0);
+
+  suraProgTicks.querySelectorAll(".suraTick[data-ref]").forEach((btn) => {
+    const ref = String(btn.dataset.ref || "");
+    const a = getAyah(ref);
+    const ay = Number(a?.ayah || 0);
+
+    const ratioRaw = Number(getHifzProgressRatioForRef(ref, stageForTicks) || 0);
+    const ratio = Math.max(0, Math.min(1, ratioRaw));
+    const result = getHifzResultForRef(ref, stageForTicks);
+
+    btn.style.setProperty("--tick-progress-pct", `${(ratio * 100).toFixed(3)}%`);
+    btn.classList.toggle("is-hifz-progress", ratio > 0);
+    btn.classList.toggle("is-hifz-mastered", ratio >= 1);
+    btn.classList.toggle("is-hifz-bad", result === "bad");
+    btn.classList.toggle("is-range-start", !!fromAyah && ay === fromAyah);
+    btn.classList.toggle("is-range-end", !!toAyah && ay === toAyah);
+  });
+}
+
+function buildSuraTicks(surahNo){
+  if (!suraProgTicks) return;
+
+  const s = Number(surahNo || 0);
+  const meta = getSuraMeta(s);
+  if (!meta || !meta.ayahCount) {
+    suraProgTicks.innerHTML = "";
+    suraProgTicks.style.setProperty("--sura-tick-count", "1");
+    _ticksSurah = 0;
+    return;
+  }
+
+  const n = Number(meta.ayahCount);
+  const stageForTicks = (typeof loadHifzStageValue === "function") ? loadHifzStageValue() : "1";
+  const isHifzTestModeNow = (() => {
+    try{
+      const qv = document.querySelector(".qView");
+      return !!qv && !!qv.querySelector(".hifzTestTopBar");
+    }catch{
+      return false;
+    }
+  })();
+  const hideRenderedRangeUi = isHifzTestModeNow && isHifzStageWithoutRenderedRangeUi(stageForTicks);
+  const bounds = _getSuraProgRangeBounds(s);
+  const fromAyah = hideRenderedRangeUi ? 0 : Number(bounds?.fromAyah || 0);
+  const toAyah = hideRenderedRangeUi ? 0 : Number(bounds?.toAyah || 0);
+
+  // gleiche Sura + gleiche Anzahl -> nur Decor aktualisieren
+  if (_ticksSurah === s && suraProgTicks.childElementCount === n) {
+    syncSuraTickDecor(s);
+    return;
+  }
+
+  _ticksSurah = s;
+  suraProgTicks.style.setProperty("--sura-tick-count", String(n));
+
+  let html = "";
+  for (let i = 1; i <= n; i++){
+    const pct = (n <= 0) ? 0 : (((i - 0.5) / n) * 100);
+    const ref = `${s}:${i}`;
+
+    const ratioRaw = Number(getHifzProgressRatioForRef(ref, stageForTicks) || 0);
+    const ratio = Math.max(0, Math.min(1, ratioRaw));
+    const result = getHifzResultForRef(ref, stageForTicks);
+
+    const cls = [
+      "suraTick",
+      ratio > 0 ? "is-hifz-progress" : "",
+      ratio >= 1 ? "is-hifz-mastered" : "",
+      result === "bad" ? "is-hifz-bad" : "",
+      (fromAyah && i === fromAyah) ? "is-range-start" : "",
+      (toAyah && i === toAyah) ? "is-range-end" : ""
+    ].filter(Boolean).join(" ");
+
+    html += `<button class="${cls}" type="button" style="left:${pct.toFixed(4)}%;--tick-progress-pct:${(ratio * 100).toFixed(3)}%" data-ref="${ref}" aria-label="${ref}"></button>`;
+  }
+
+  suraProgTicks.innerHTML = html;
+}
+
+window.__suraProgSetSurah = (s) => {
+  try {
+    buildSuraTicks(s);
+    syncSuraTickDecor(s);
+    markActiveTick(currentRef || `${Number(s || currentSurahInView || 1)}:1`);
+  } catch {}
+};
+
+window.__suraProgRefresh = () => {
+  try {
+    buildSuraTicks(currentSurahInView || 1);
+    syncSuraTickDecor(currentSurahInView || 1);
+    markActiveTick(currentRef || `${Number(currentSurahInView || 1)}:1`);
+  } catch {}
+};
+
+try {
+  buildSuraTicks(currentSurahInView || 1);
+  syncSuraTickDecor(currentSurahInView || 1);
+  markActiveTick(currentRef || `${Number(currentSurahInView || 1)}:1`);
+} catch {}
 
   // ✅ O(1): nur letztes + neues Element anfassen (keine querySelectorAll-Loops)
   let _lastActiveTickEl = null;
   let _lastActiveTickRef = "";
 
   function markActiveTick(ref){
-    
-       if (!suraProgTicks) return;
+    if (!suraProgTicks) return;
 
     const r = String(ref || "");
+
+    try{
+      const aNow = getAyah(r);
+      syncSuraTickDecor(aNow?.surah || currentSurahInView || 0);
+    }catch{}
 
     // Wenn wir schon auf diesem Ref sind und das Element noch im DOM ist -> nix tun
     if (_lastActiveTickRef === r && _lastActiveTickEl && _lastActiveTickEl.isConnected) return;
@@ -5027,31 +5288,122 @@ suraProg.addEventListener("click", (e) => {
       });
     }
 
-    // Hover: tooltip (THROTTLED für Performance, bleibt AN)
+    // Hover: tooltip
     let _suraTipLastT = 0;
     let _suraTipLastRef = "";
 
-    suraProgTicks.addEventListener("mousemove", (e) => {
-      const t = e.target.closest?.(".suraTick[data-ref]");
-      if (!t) { _hideSuraTip(); return; }
+    const _isVisibleEl = (el) => {
+      if (!el) return false;
+      try{
+        const cs = getComputedStyle(el);
+        if (cs.display === "none" || cs.visibility === "hidden") return false;
+      }catch{}
+      return true;
+    };
 
-      const ref = t.dataset.ref || "";
-      const now = (performance && performance.now) ? performance.now() : Date.now();
+    const _isHifzTestModeActive = () => {
+      try{
+        const qv = document.querySelector(".qView");
+        if (!_isVisibleEl(qv)) return false;
+        return !!qv.querySelector(".hifzTestTopBar");
+      }catch{
+        return false;
+      }
+    };
 
-      // ✅ Wenn Ref wechselt: sofort updaten (fühlt sich snappy an)
-      // ✅ Sonst: throttle auf ~40ms
-      if (ref === _suraTipLastRef && (now - _suraTipLastT) < 40) return;
+    const _isTickInsideRenderedTestRange = (tickEl) => {
+      try{
+        const ref = String(tickEl?.dataset?.ref || "");
+        const a = getAyah(ref);
+        if (!a) return false;
 
-      _suraTipLastRef = ref;
-      _suraTipLastT = now;
+        const { fromAyah, toAyah } = _getSuraProgRangeBounds(a.surah);
+        if (!fromAyah || !toAyah) return false;
 
-      _showSuraTipAt(e.clientX, e.clientY, ref);
-    }, { passive: true });
+        return a.ayah >= fromAyah && a.ayah <= toAyah;
+      }catch{
+        return false;
+      }
+    };
 
-    suraProgTicks.addEventListener("mouseleave", () => {
-      _suraTipLastRef = "";
-      _hideSuraTip();
-    });
+const _showSuraTipForTick = (tickEl, x, y) => {
+  const ref = String(tickEl?.dataset?.ref || "");
+  if (!ref) {
+    _hideSuraTip();
+    return;
+  }
+
+  const isInsideRenderedTestRange =
+    _isHifzTestModeActive() && _isTickInsideRenderedTestRange(tickEl);
+
+  const stageNow = String(hifzStageValue || "1");
+  const compactForLockedStages =
+    !!statusbar?.classList.contains("is-hifz-range-ui") &&
+    /^(6|7|8|9|10)$/.test(stageNow);
+
+  _showSuraTipAt(x, y, ref, {
+    compactRefOnly: compactForLockedStages || isInsideRenderedTestRange
+  });
+};
+
+suraProgTicks.addEventListener("pointermove", (e) => {
+  const t = e.target?.closest?.(".suraTick[data-ref]");
+  if (!t) {
+    _hideSuraTip();
+    return;
+  }
+
+  const ref = String(t.dataset.ref || "");
+  const now = (performance && performance.now) ? performance.now() : Date.now();
+
+  if (ref === _suraTipLastRef && (now - _suraTipLastT) < 40) return;
+
+  _suraTipLastRef = ref;
+  _suraTipLastT = now;
+
+  _showSuraTipForTick(t, e.clientX, e.clientY);
+}, { passive: true });
+
+suraProgTicks.addEventListener("pointerover", (e) => {
+  const t = e.target?.closest?.(".suraTick[data-ref]");
+  if (!t) return;
+
+  const r = t.getBoundingClientRect();
+  _suraTipLastRef = String(t.dataset.ref || "");
+  _suraTipLastT = 0;
+
+  _showSuraTipForTick(
+    t,
+    r.left + (r.width / 2),
+    r.top + (r.height / 2)
+  );
+}, { passive: true });
+
+suraProgTicks.addEventListener("focusin", (e) => {
+  const t = e.target?.closest?.(".suraTick[data-ref]");
+  if (!t) return;
+
+  const r = t.getBoundingClientRect();
+  _suraTipLastRef = String(t.dataset.ref || "");
+  _suraTipLastT = 0;
+
+  _showSuraTipForTick(
+    t,
+    r.left + (r.width / 2),
+    r.top + (r.height / 2)
+  );
+});
+
+suraProgTicks.addEventListener("pointerleave", () => {
+  _suraTipLastRef = "";
+  _hideSuraTip();
+});
+
+suraProgTicks.addEventListener("focusout", (e) => {
+  if (suraProgTicks.contains(e.relatedTarget)) return;
+  _suraTipLastRef = "";
+  _hideSuraTip();
+});
         // =========================
     // Scroll-Progress 
     // =========================
@@ -5133,30 +5485,35 @@ function _shouldShow(){
 
       let _rafPending = false;
 
-      function _update(){
-        _rafPending = false;
+function _update(){
+  _rafPending = false;
 
-        // ✅ Fix: nach Tick/Bar-Klick kurz “chillen” (kein Hin-und-Her)
-        try{
-          const fu = Number(window.__suraProgFreezeUntil || 0);
-          if (fu && performance.now() < fu) return;
-        }catch(e){}
+  // ✅ Fix: nach Tick/Bar-Klick kurz “chillen” (kein Hin-und-Her)
+  try{
+    const fu = Number(window.__suraProgFreezeUntil || 0);
+    if (fu && performance.now() < fu) return;
+  }catch(e){}
 
-        // wenn nicht erlaubt: auf 0 setzen (versteckt wird per CSS)
-        if (!_shouldShow()) {
-          scrollProg.style.transform = "scaleX(0)";
-          return;
-        }
+  // wenn nicht erlaubt: auf 0 setzen (versteckt wird per CSS)
+  if (!_shouldShow()) {
+    scrollProg.style.transform = "scaleX(0)";
+    return;
+  }
 
-        const view = _getActiveScrollView();
-        if (!view) {
-          scrollProg.style.transform = "scaleX(0)";
-          return;
-        }
+  const view = _getActiveScrollView();
+  if (!view) {
+    scrollProg.style.transform = "scaleX(0)";
+    return;
+  }
 
-        const pct = _calcPct(view);
-        scrollProg.style.transform = `scaleX(${pct})`;
-      }
+  const pct = _calcPct(view);
+  scrollProg.style.transform = `scaleX(${pct})`;
+
+  // ✅ Orange Marker in der Statusleiste immer mit aktueller Ayah nachziehen
+  try{
+    markActiveTick(currentRef || `${Number(currentSurahInView || 1)}:1`);
+  }catch{}
+}
 
       function _schedule(){
         if (_rafPending) return;
@@ -7058,8 +7415,20 @@ function toggleSurahPlaybackFromBtn(surahNo, btn) {
     return;
   }
 
-  // Sonst: starte diese Sura ab Anfang
-  startSurahPlayback(surahNo, { fromAyah: 1, btn });
+  let fromAyah = 1;
+  let toAyah = null;
+
+  try{
+    const isHifzTopBtn = !!btn?.closest?.(".hifzTrainTopBar, .hifzTestTopBar");
+    if (isHifzTopBtn) {
+      const bounds = getHifzRangeBoundsForRef(`${surahNo}:1`);
+      fromAyah = bounds.fromAyah;
+      toAyah = bounds.toAyah;
+    }
+  }catch(e){}
+
+  // Sonst: starte diese Sura ab Anfang oder im Hifz-Bereich nur im gewählten Bereich
+  startSurahPlayback(surahNo, { fromAyah, toAyah, btn });
 }
 
 // ✅ welche Sura ist "im Fokus" der View (für Statusbar Play)
@@ -8030,6 +8399,600 @@ const tick = () => {
 
 }
 
+function installHifzRecallHotkeys() {
+  if (window.__quranHifzRecallHotkeysInstalled) return;
+  window.__quranHifzRecallHotkeysInstalled = true;
+
+  document.addEventListener(
+    "keydown",
+    (e) => {
+      const key = String(e.key || "");
+      const code = String(e.code || "");
+
+      const isSpace = code === "Space" || key === " ";
+      const isBad = key === "1" || code === "Digit1" || code === "Numpad1";
+      const isGood = key === "3" || code === "Digit3" || code === "Numpad3";
+
+      if (!isSpace && !isBad && !isGood) return;
+      if (e.repeat) return;
+
+      const ae = document.activeElement;
+      const typing =
+        ae &&
+        (ae.tagName === "INPUT" ||
+          ae.tagName === "TEXTAREA" ||
+          ae.isContentEditable);
+      if (typing) return;
+
+      if (viewMode !== "ayah") return;
+
+      const qv = document.querySelector(".qView");
+      if (!qv || qv.dataset.mode === "favorites" || qv.style.display === "none") return;
+
+      const ref = String(currentRef || "");
+      if (!/^\d+:\d+$/.test(ref)) return;
+
+      const safeRef = CSS.escape(ref);
+      const unhideBtn = qv.querySelector(`[data-hifz-unhide="${safeRef}"]`);
+      const badBtn = qv.querySelector(`[data-hifz-mark="bad"][data-hifz-ref="${safeRef}"]`);
+      const goodBtn = qv.querySelector(`[data-hifz-mark="good"][data-hifz-ref="${safeRef}"]`);
+
+      const targetBtn = isSpace ? unhideBtn : (isBad ? badBtn : goodBtn);
+      if (!targetBtn) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (typeof e.stopImmediatePropagation === "function") {
+        e.stopImmediatePropagation();
+      }
+
+      targetBtn.click();
+    },
+    { capture: true }
+  );
+}
+
+function installHifzRecallHotkeys() {
+  if (window.__quranHifzRecallHotkeysInstalled) return;
+  window.__quranHifzRecallHotkeysInstalled = true;
+
+  document.addEventListener(
+    "keydown",
+    (e) => {
+      const key = String(e.key || "");
+      const code = String(e.code || "");
+
+      const isSpace = code === "Space" || key === " ";
+      const isBad = key === "1" || code === "Digit1" || code === "Numpad1";
+      const isGood = key === "3" || code === "Digit3" || code === "Numpad3";
+
+      if (!isSpace && !isBad && !isGood) return;
+      if (e.repeat) return;
+
+      const ae = document.activeElement;
+      const typing =
+        ae &&
+        (ae.tagName === "INPUT" ||
+          ae.tagName === "TEXTAREA" ||
+          ae.isContentEditable);
+      if (typing) return;
+
+      if (viewMode !== "ayah") return;
+
+      const qv = document.querySelector(".qView");
+      if (!qv || qv.dataset.mode === "favorites" || qv.style.display === "none") return;
+
+      const ref = String(currentRef || "");
+      if (!/^\d+:\d+$/.test(ref)) return;
+
+      const safeRef = CSS.escape(ref);
+      const unhideBtn = qv.querySelector(`[data-hifz-unhide="${safeRef}"]`);
+      const badBtn = qv.querySelector(`[data-hifz-mark="bad"][data-hifz-ref="${safeRef}"]`);
+      const goodBtn = qv.querySelector(`[data-hifz-mark="good"][data-hifz-ref="${safeRef}"]`);
+
+      const targetBtn = isSpace ? unhideBtn : (isBad ? badBtn : goodBtn);
+      if (!targetBtn) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (typeof e.stopImmediatePropagation === "function") {
+        e.stopImmediatePropagation();
+      }
+
+      targetBtn.click();
+    },
+    { capture: true }
+  );
+}
+
+function installHifzRecallHotkeys() {
+  if (window.__quranHifzRecallHotkeysInstalled) return;
+  window.__quranHifzRecallHotkeysInstalled = true;
+
+  document.addEventListener(
+    "keydown",
+    (e) => {
+      const key = String(e.key || "");
+      const code = String(e.code || "");
+
+      const isSpace = code === "Space" || key === " ";
+      const isBad = key === "1" || code === "Digit1" || code === "Numpad1";
+      const isGood = key === "3" || code === "Digit3" || code === "Numpad3";
+
+      if (!isSpace && !isBad && !isGood) return;
+      if (e.repeat) return;
+
+      const ae = document.activeElement;
+      const typing =
+        ae &&
+        (ae.tagName === "INPUT" ||
+          ae.tagName === "TEXTAREA" ||
+          ae.isContentEditable);
+      if (typing) return;
+
+      if (viewMode !== "ayah") return;
+
+      const qv = document.querySelector(".qView");
+      if (!qv || qv.dataset.mode === "favorites" || qv.style.display === "none") return;
+
+      const ref = String(currentRef || "");
+      if (!/^\d+:\d+$/.test(ref)) return;
+
+      const safeRef = CSS.escape(ref);
+      const unhideBtn = qv.querySelector(`[data-hifz-unhide="${safeRef}"]`);
+      const badBtn = qv.querySelector(`[data-hifz-mark="bad"][data-hifz-ref="${safeRef}"]`);
+      const goodBtn = qv.querySelector(`[data-hifz-mark="good"][data-hifz-ref="${safeRef}"]`);
+
+      const targetBtn = isSpace ? unhideBtn : (isBad ? badBtn : goodBtn);
+      if (!targetBtn) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (typeof e.stopImmediatePropagation === "function") {
+        e.stopImmediatePropagation();
+      }
+
+      targetBtn.click();
+    },
+    { capture: true }
+  );
+}
+
+function installHifzRecallHotkeys() {
+  if (window.__quranHifzRecallHotkeysInstalled) return;
+  window.__quranHifzRecallHotkeysInstalled = true;
+
+  document.addEventListener(
+    "keydown",
+    (e) => {
+      const key = String(e.key || "");
+      const code = String(e.code || "");
+
+      const isSpace = code === "Space" || key === " ";
+      const isBad = key === "1" || code === "Digit1" || code === "Numpad1";
+      const isGood = key === "3" || code === "Digit3" || code === "Numpad3";
+
+      if (!isSpace && !isBad && !isGood) return;
+      if (e.repeat) return;
+
+      const ae = document.activeElement;
+      const typing =
+        ae &&
+        (ae.tagName === "INPUT" ||
+          ae.tagName === "TEXTAREA" ||
+          ae.isContentEditable);
+      if (typing) return;
+
+      if (viewMode !== "ayah") return;
+
+      const qv = document.querySelector(".qView");
+      if (!qv || qv.dataset.mode === "favorites" || qv.style.display === "none") return;
+
+      const ref = String(currentRef || "");
+      if (!/^\d+:\d+$/.test(ref)) return;
+
+      const safeRef = CSS.escape(ref);
+      const unhideBtn = qv.querySelector(`[data-hifz-unhide="${safeRef}"]`);
+      const badBtn = qv.querySelector(`[data-hifz-mark="bad"][data-hifz-ref="${safeRef}"]`);
+      const goodBtn = qv.querySelector(`[data-hifz-mark="good"][data-hifz-ref="${safeRef}"]`);
+
+      const targetBtn = isSpace ? unhideBtn : (isBad ? badBtn : goodBtn);
+      if (!targetBtn) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (typeof e.stopImmediatePropagation === "function") {
+        e.stopImmediatePropagation();
+      }
+
+      targetBtn.click();
+    },
+    { capture: true }
+  );
+}
+
+function installHifzRecallHotkeys() {
+  if (window.__quranHifzRecallHotkeysInstalled) return;
+  window.__quranHifzRecallHotkeysInstalled = true;
+
+  document.addEventListener(
+    "keydown",
+    (e) => {
+      const key = String(e.key || "");
+      const code = String(e.code || "");
+
+      const isSpace = code === "Space" || key === " ";
+      const isBad = key === "1" || code === "Digit1" || code === "Numpad1";
+      const isGood = key === "3" || code === "Digit3" || code === "Numpad3";
+
+      if (!isSpace && !isBad && !isGood) return;
+      if (e.repeat) return;
+
+      const ae = document.activeElement;
+      const typing =
+        ae &&
+        (ae.tagName === "INPUT" ||
+          ae.tagName === "TEXTAREA" ||
+          ae.isContentEditable);
+      if (typing) return;
+
+      if (viewMode !== "ayah") return;
+
+      const qv = document.querySelector(".qView");
+      if (!qv || qv.dataset.mode === "favorites" || qv.style.display === "none") return;
+
+      const ref = String(currentRef || "");
+      if (!/^\d+:\d+$/.test(ref)) return;
+
+      const safeRef = CSS.escape(ref);
+      const unhideBtn = qv.querySelector(`[data-hifz-unhide="${safeRef}"]`);
+      const badBtn = qv.querySelector(`[data-hifz-mark="bad"][data-hifz-ref="${safeRef}"]`);
+      const goodBtn = qv.querySelector(`[data-hifz-mark="good"][data-hifz-ref="${safeRef}"]`);
+
+      const targetBtn = isSpace ? unhideBtn : (isBad ? badBtn : goodBtn);
+      if (!targetBtn) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (typeof e.stopImmediatePropagation === "function") {
+        e.stopImmediatePropagation();
+      }
+
+      targetBtn.click();
+    },
+    { capture: true }
+  );
+}
+
+function installHifzRecallHotkeys() {
+  if (window.__quranHifzRecallHotkeysInstalled) return;
+  window.__quranHifzRecallHotkeysInstalled = true;
+
+  document.addEventListener(
+    "keydown",
+    (e) => {
+      const key = String(e.key || "");
+      const code = String(e.code || "");
+
+      const isSpace = code === "Space" || key === " ";
+      const isBad = key === "1" || code === "Digit1" || code === "Numpad1";
+      const isGood = key === "3" || code === "Digit3" || code === "Numpad3";
+
+      if (!isSpace && !isBad && !isGood) return;
+      if (e.repeat) return;
+
+      const ae = document.activeElement;
+      const typing =
+        ae &&
+        (ae.tagName === "INPUT" ||
+          ae.tagName === "TEXTAREA" ||
+          ae.isContentEditable);
+      if (typing) return;
+
+      if (viewMode !== "ayah") return;
+
+      const qv = document.querySelector(".qView");
+      if (!qv || qv.dataset.mode === "favorites" || qv.style.display === "none") return;
+
+      const ref = String(currentRef || "");
+      if (!/^\d+:\d+$/.test(ref)) return;
+
+      const safeRef = CSS.escape(ref);
+      const unhideBtn = qv.querySelector(`[data-hifz-unhide="${safeRef}"]`);
+      const badBtn = qv.querySelector(`[data-hifz-mark="bad"][data-hifz-ref="${safeRef}"]`);
+      const goodBtn = qv.querySelector(`[data-hifz-mark="good"][data-hifz-ref="${safeRef}"]`);
+
+      const targetBtn = isSpace ? unhideBtn : (isBad ? badBtn : goodBtn);
+      if (!targetBtn) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (typeof e.stopImmediatePropagation === "function") {
+        e.stopImmediatePropagation();
+      }
+
+      targetBtn.click();
+    },
+    { capture: true }
+  );
+}
+
+function installHifzRecallHotkeys() {
+  if (window.__quranHifzRecallHotkeysInstalled) return;
+  window.__quranHifzRecallHotkeysInstalled = true;
+
+  document.addEventListener(
+    "keydown",
+    (e) => {
+      const key = String(e.key || "");
+      const code = String(e.code || "");
+
+      const isSpace = code === "Space" || key === " ";
+      const isBad = key === "1" || code === "Digit1" || code === "Numpad1";
+      const isGood = key === "3" || code === "Digit3" || code === "Numpad3";
+
+      if (!isSpace && !isBad && !isGood) return;
+      if (e.repeat) return;
+
+      const ae = document.activeElement;
+      const typing =
+        ae &&
+        (ae.tagName === "INPUT" ||
+          ae.tagName === "TEXTAREA" ||
+          ae.isContentEditable);
+      if (typing) return;
+
+      if (viewMode !== "ayah") return;
+
+      const qv = document.querySelector(".qView");
+      if (!qv || qv.dataset.mode === "favorites" || qv.style.display === "none") return;
+
+      const ref = String(currentRef || "");
+      if (!/^\d+:\d+$/.test(ref)) return;
+
+      const safeRef = CSS.escape(ref);
+      const unhideBtn = qv.querySelector(`[data-hifz-unhide="${safeRef}"]`);
+      const badBtn = qv.querySelector(`[data-hifz-mark="bad"][data-hifz-ref="${safeRef}"]`);
+      const goodBtn = qv.querySelector(`[data-hifz-mark="good"][data-hifz-ref="${safeRef}"]`);
+
+      const targetBtn = isSpace ? unhideBtn : (isBad ? badBtn : goodBtn);
+      if (!targetBtn) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (typeof e.stopImmediatePropagation === "function") {
+        e.stopImmediatePropagation();
+      }
+
+      targetBtn.click();
+    },
+    { capture: true }
+  );
+}
+
+function installHifzRecallHotkeys() {
+  if (window.__quranHifzRecallHotkeysInstalled) return;
+  window.__quranHifzRecallHotkeysInstalled = true;
+
+  document.addEventListener(
+    "keydown",
+    (e) => {
+      const key = String(e.key || "");
+      const code = String(e.code || "");
+
+      const isSpace = code === "Space" || key === " ";
+      const isBad = key === "1" || code === "Digit1" || code === "Numpad1";
+      const isGood = key === "3" || code === "Digit3" || code === "Numpad3";
+
+      if (!isSpace && !isBad && !isGood) return;
+      if (e.repeat) return;
+
+      const ae = document.activeElement;
+      const typing =
+        ae &&
+        (ae.tagName === "INPUT" ||
+          ae.tagName === "TEXTAREA" ||
+          ae.isContentEditable);
+      if (typing) return;
+
+      if (viewMode !== "ayah") return;
+
+      const qv = document.querySelector(".qView");
+      if (!qv || qv.dataset.mode === "favorites" || qv.style.display === "none") return;
+
+      const ref = String(currentRef || "");
+      if (!/^\d+:\d+$/.test(ref)) return;
+
+      const safeRef = CSS.escape(ref);
+      const unhideBtn = qv.querySelector(`[data-hifz-unhide="${safeRef}"]`);
+      const badBtn = qv.querySelector(`[data-hifz-mark="bad"][data-hifz-ref="${safeRef}"]`);
+      const goodBtn = qv.querySelector(`[data-hifz-mark="good"][data-hifz-ref="${safeRef}"]`);
+
+      const targetBtn = isSpace ? unhideBtn : (isBad ? badBtn : goodBtn);
+      if (!targetBtn) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (typeof e.stopImmediatePropagation === "function") {
+        e.stopImmediatePropagation();
+      }
+
+      targetBtn.click();
+    },
+    { capture: true }
+  );
+}
+
+function installHifzRecallHotkeys() {
+  if (window.__quranHifzRecallHotkeysInstalled) return;
+  window.__quranHifzRecallHotkeysInstalled = true;
+
+  document.addEventListener(
+    "keydown",
+    (e) => {
+      const key = String(e.key || "");
+      const code = String(e.code || "");
+
+      const isSpace = code === "Space" || key === " ";
+      const isBad = key === "1" || code === "Digit1" || code === "Numpad1";
+      const isGood = key === "3" || code === "Digit3" || code === "Numpad3";
+
+      if (!isSpace && !isBad && !isGood) return;
+      if (e.repeat) return;
+
+      const ae = document.activeElement;
+      const typing =
+        ae &&
+        (ae.tagName === "INPUT" ||
+          ae.tagName === "TEXTAREA" ||
+          ae.isContentEditable);
+      if (typing) return;
+
+      if (viewMode !== "ayah") return;
+
+      const qv = document.querySelector(".qView");
+      if (!qv || qv.dataset.mode === "favorites" || qv.style.display === "none") return;
+
+      const ref = String(currentRef || "");
+      if (!/^\d+:\d+$/.test(ref)) return;
+
+      const safeRef = CSS.escape(ref);
+      const unhideBtn = qv.querySelector(`[data-hifz-unhide="${safeRef}"]`);
+      const badBtn = qv.querySelector(`[data-hifz-mark="bad"][data-hifz-ref="${safeRef}"]`);
+      const goodBtn = qv.querySelector(`[data-hifz-mark="good"][data-hifz-ref="${safeRef}"]`);
+
+      const targetBtn = isSpace ? unhideBtn : (isBad ? badBtn : goodBtn);
+      if (!targetBtn) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (typeof e.stopImmediatePropagation === "function") {
+        e.stopImmediatePropagation();
+      }
+
+      targetBtn.click();
+    },
+    { capture: true }
+  );
+}
+
+function installHifzRecallHotkeys() {
+  if (window.__quranHifzRecallHotkeysInstalled) return;
+  window.__quranHifzRecallHotkeysInstalled = true;
+
+  document.addEventListener(
+    "keydown",
+    (e) => {
+      const key = String(e.key || "");
+      const code = String(e.code || "");
+
+      const isSpace = code === "Space" || key === " ";
+      const isBad = key === "1" || code === "Digit1" || code === "Numpad1";
+      const isGood = key === "3" || code === "Digit3" || code === "Numpad3";
+
+      if (!isSpace && !isBad && !isGood) return;
+      if (e.repeat) return;
+
+      const ae = document.activeElement;
+      const typing =
+        ae &&
+        (ae.tagName === "INPUT" ||
+          ae.tagName === "TEXTAREA" ||
+          ae.isContentEditable);
+      if (typing) return;
+
+      if (viewMode !== "ayah") return;
+
+      const qv = document.querySelector(".qView");
+      if (!qv || qv.dataset.mode === "favorites" || qv.style.display === "none") return;
+
+      const ref = String(currentRef || "");
+      if (!/^\d+:\d+$/.test(ref)) return;
+
+      const safeRef = CSS.escape(ref);
+      const unhideBtn = qv.querySelector(`[data-hifz-unhide="${safeRef}"]`);
+      const badBtn = qv.querySelector(`[data-hifz-mark="bad"][data-hifz-ref="${safeRef}"]`);
+      const goodBtn = qv.querySelector(`[data-hifz-mark="good"][data-hifz-ref="${safeRef}"]`);
+
+      const targetBtn = isSpace ? unhideBtn : (isBad ? badBtn : goodBtn);
+      if (!targetBtn) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (typeof e.stopImmediatePropagation === "function") {
+        e.stopImmediatePropagation();
+      }
+
+      targetBtn.click();
+    },
+    { capture: true }
+  );
+}
+
+function installHifzRecallHotkeys() {
+  if (window.__quranHifzRecallHotkeysInstalled) return;
+  window.__quranHifzRecallHotkeysInstalled = true;
+
+  document.addEventListener(
+    "keydown",
+    (e) => {
+      const key = String(e.key || "");
+      const code = String(e.code || "");
+
+      const isSpace = code === "Space" || key === " ";
+      const isBad = key === "1" || code === "Digit1" || code === "Numpad1";
+      const isGood = key === "3" || code === "Digit3" || code === "Numpad3";
+
+      if (!isSpace && !isBad && !isGood) return;
+      if (e.repeat) return;
+
+      const ae = document.activeElement;
+      const typing =
+        ae &&
+        (ae.tagName === "INPUT" ||
+          ae.tagName === "TEXTAREA" ||
+          ae.isContentEditable);
+      if (typing) return;
+
+      if (viewMode !== "ayah") return;
+
+      const qv = document.querySelector(".qView");
+      if (!qv || qv.dataset.mode === "favorites" || qv.style.display === "none") return;
+
+      const ref = String(currentRef || "");
+      if (!/^\d+:\d+$/.test(ref)) return;
+
+      const safeRef = CSS.escape(ref);
+      const unhideBtn = qv.querySelector(`[data-hifz-unhide="${safeRef}"]`);
+      const badBtn = qv.querySelector(`[data-hifz-mark="bad"][data-hifz-ref="${safeRef}"]`);
+      const goodBtn = qv.querySelector(`[data-hifz-mark="good"][data-hifz-ref="${safeRef}"]`);
+
+      const targetBtn = isSpace ? unhideBtn : (isBad ? badBtn : goodBtn);
+      if (!targetBtn) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (typeof e.stopImmediatePropagation === "function") {
+        e.stopImmediatePropagation();
+      }
+
+      targetBtn.click();
+    },
+    { capture: true }
+  );
+}
+
 function installSpacebarAudioHotkey() {
   if (window.__quranSpacebarHotkeyInstalled) return;
   window.__quranSpacebarHotkeyInstalled = true;
@@ -8138,6 +9101,7 @@ function saveHifzStageValue(v){
   const safe = /^(10|[1-9])$/.test(String(v || "")) ? String(v) : "1";
   hifzStageValue = safe;
   try{ localStorage.setItem(LS_HIFZ_STAGE, safe); }catch{}
+  try { window.__accountScheduleSync?.(); } catch(e) {}
 }
 
 function loadHifzRangeValue(){
@@ -8152,6 +9116,42 @@ function saveHifzRangeValue(v){
   const safe = String(v || "").trim() || "5-10";
   hifzRangeValue = safe;
   try{ localStorage.setItem(LS_HIFZ_RANGE, safe); }catch{}
+  try { window.__accountScheduleSync?.(); } catch(e) {}
+}
+
+function getHifzRangeBoundsForRef(ref = currentRef){
+  const ay = getAyah(ref);
+  const surahNo = ay?.surah || currentSurahInView || 1;
+  const refsRaw = (typeof getSuraRefs === "function") ? (getSuraRefs(surahNo) || []) : [];
+
+  const rawRange = String(hifzRangeValue || "1-999").trim();
+  const m = rawRange.match(/^(\d+)\s*-\s*(\d+)$/);
+
+  let fromAyah = 1;
+  let toAyah = Number(getSuraMeta(surahNo)?.ayahCount || refsRaw.length || 1);
+
+  if (m) {
+    fromAyah = Math.max(1, Number(m[1]) || 1);
+    toAyah = Math.max(1, Number(m[2]) || fromAyah);
+  }
+
+  if (toAyah < fromAyah) {
+    const tmp = fromAyah;
+    fromAyah = toAyah;
+    toAyah = tmp;
+  }
+
+  const maxAyah = Number(getSuraMeta(surahNo)?.ayahCount || refsRaw.length || 1);
+  fromAyah = Math.min(fromAyah, maxAyah);
+  toAyah = Math.min(toAyah, maxAyah);
+
+  return {
+    surahNo,
+    fromAyah,
+    toAyah,
+    startRef: `${surahNo}:${fromAyah}`,
+    endRef: `${surahNo}:${toAyah}`
+  };
 }
 
 
@@ -8163,6 +9163,7 @@ const HIFZ_STAGE_META = {
     id: "1",
     title: "Stage 1",
     short: "Sequential with help",
+    menu: "order • previous ayah + first word",
     assist: "Previous ayah + first word",
     kind: "recite"
   },
@@ -8170,6 +9171,7 @@ const HIFZ_STAGE_META = {
     id: "2",
     title: "Stage 2",
     short: "Sequential without first-word help",
+    menu: "order • previous ayah only",
     assist: "Previous ayah",
     kind: "recite"
   },
@@ -8177,6 +9179,7 @@ const HIFZ_STAGE_META = {
     id: "3",
     title: "Stage 3",
     short: "Random within the surah with help",
+    menu: "range random ayah • previous ayah + first word",
     assist: "Previous ayah + first word",
     kind: "recite"
   },
@@ -8184,20 +9187,23 @@ const HIFZ_STAGE_META = {
     id: "4",
     title: "Stage 4",
     short: "Random within the surah with small help",
+    menu: "range random ayah • previous ayah only",
     assist: "Previous ayah",
     kind: "recite"
   },
   "5": {
     id: "5",
     title: "Stage 5",
-    short: "Random within the surah without help",
-    assist: "Surah:Ayah only",
+    short: "Random within selected range, ayah number only",
+    menu: "range random ayah • ayah number",
+    assist: "Ayah number only",
     kind: "recite"
   },
   "6": {
     id: "6",
     title: "Stage 6",
-    short: "Random within the surah, ayah number only",
+    short: "Random from the whole surah, ayah number only",
+    menu: "all surah random ayah • ayah number only",
     assist: "Ayah number only",
     kind: "recite"
   },
@@ -8205,27 +9211,31 @@ const HIFZ_STAGE_META = {
     id: "7",
     title: "Stage 7",
     short: "Random from the whole Quran (Hafiz level)",
+    menu: "whole Quran random ayah • no help",
     assist: "No help",
     kind: "recite"
   },
   "8": {
     id: "8",
     title: "Stage 8",
-    short: "Writing, random with help",
+    short: "Writing, random from the whole surah with help",
+    menu: "writing • all surah random ayah • previous ayah",
     assist: "Previous ayah shown",
     kind: "write"
   },
   "9": {
     id: "9",
     title: "Stage 9",
-    short: "Writing, random without help",
+    short: "Writing, random from the whole surah without previous ayah help",
+    menu: "writing • all surah random ayah • no help",
     assist: "Surah:Ayah only",
     kind: "write"
   },
   "10": {
     id: "10",
     title: "Stage 10",
-    short: "Writing, random from the whole Quran",
+    short: "Writing, random from the whole Quran without previous ayah help",
+    menu: "writing • whole Quran random ayah • no help",
     assist: "Surah:Ayah only",
     kind: "write"
   }
@@ -8233,6 +9243,102 @@ const HIFZ_STAGE_META = {
 
 function getHifzStageMeta(id){
   return HIFZ_STAGE_META[String(id)] || HIFZ_STAGE_META["1"];
+}
+
+function escHifzStageText(v){
+  return String(v ?? "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "\"": "&quot;",
+    "'": "&#39;"
+  }[c]));
+}
+
+function getHifzStageProgressMap(){
+  try{
+    const refs = getAllRefs();
+    const ids = Object.keys(HIFZ_STAGE_META).sort((a, b) => Number(a) - Number(b));
+    const sums = {};
+
+    for (const id of ids) sums[id] = 0;
+
+    if (!refs.length) {
+      const empty = {};
+      for (const id of ids) empty[id] = 0;
+      return empty;
+    }
+
+    for (const ref of refs){
+      for (const id of ids){
+        const ratio = Number(getHifzProgressRatioForRef(ref, id) || 0);
+        sums[id] += Math.max(0, Math.min(1, ratio));
+      }
+    }
+
+    const out = {};
+    for (const id of ids){
+      out[id] = Math.max(0, Math.min(100, Math.round((sums[id] / refs.length) * 100)));
+    }
+    return out;
+  }catch{
+    return {
+      "1": 0, "2": 0, "3": 0, "4": 0, "5": 0,
+      "6": 0, "7": 0, "8": 0, "9": 0, "10": 0
+    };
+  }
+}
+
+function buildHifzStageDropdownHtml(selectedId){
+  const selected = String(selectedId || "1");
+  const progressMap = getHifzStageProgressMap();
+  const items = Object.keys(HIFZ_STAGE_META).sort((a, b) => Number(a) - Number(b));
+  const activeMeta = getHifzStageMeta(selected);
+  const activePct = Number(progressMap[selected] || 0);
+
+  const nativeOptions = items.map((id) => {
+    const meta = getHifzStageMeta(id);
+    const sel = id === selected ? " selected" : "";
+    return `<option value="${id}"${sel}>${escHifzStageText(meta.title)}</option>`;
+  }).join("");
+
+  const menuItems = items.map((id) => {
+    const meta = getHifzStageMeta(id);
+    const pct = Number(progressMap[id] || 0);
+    const selectedCls = id === selected ? " is-selected" : "";
+    return `
+      <button
+        class="hifzStageDropItem${selectedCls}"
+        type="button"
+        data-stage-value="${id}"
+        role="option"
+        aria-selected="${id === selected ? "true" : "false"}"
+        style="--stage-progress:${pct}%;">
+        <span class="hifzStageDropItemMain">
+          <span class="hifzStageDropItemTitle">${escHifzStageText(meta.title)}</span>
+          <span class="hifzStageDropItemDesc">(${escHifzStageText(meta.menu)})</span>
+        </span>
+        <span class="hifzStageDropItemPct">${pct}%</span>
+      </button>
+    `;
+  }).join("");
+
+  return `
+    <div class="hifzStageDrop" id="hifzStageDropTop" style="--hifz-stage-pct:${activePct}%;">
+      <select class="hifzStageSelect hifzStageSelectNative" id="hifzStageSelectTop" aria-label="Choose Hifz level">
+        ${nativeOptions}
+      </select>
+
+      <button class="hifzStageDropBtn" id="hifzStageDropBtnTop" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Choose Hifz level">
+        <span class="hifzStageDropBtnLabel" id="hifzStageDropLabelTop">${escHifzStageText(activeMeta.title)}</span>
+        <span class="hifzStageDropBtnArrow" aria-hidden="true">▼</span>
+      </button>
+
+      <div class="hifzStageDropMenu" id="hifzStageDropMenuTop" role="listbox" aria-label="Choose Hifz level">
+        ${menuItems}
+      </div>
+    </div>
+  `;
 }
 
 function getHifzStageInfoHtml(esc){
@@ -8252,37 +9358,92 @@ function getHifzStageInfoHtml(esc){
 const LS_HIFZ_RESULTS = "q_hifz_results_v1";
 const LS_HIFZ_REPEAT_TARGET = "q_hifz_repeat_target_v1";
 
+let __hifzResultsCache = null;
+let __hifzRepeatTargetCache = null;
+
+function __normalizeHifzResultsMap(obj){
+  return (obj && typeof obj === "object") ? obj : {};
+}
+
+function __resetHifzLocalCache(){
+  __hifzResultsCache = null;
+  __hifzRepeatTargetCache = null;
+}
+
 function loadHifzResults(){
+  if (__hifzResultsCache && typeof __hifzResultsCache === "object") {
+    return __hifzResultsCache;
+  }
+
   try{
     const raw = localStorage.getItem(LS_HIFZ_RESULTS);
-    if (!raw) return {};
+    if (!raw) {
+      __hifzResultsCache = {};
+      return __hifzResultsCache;
+    }
+
     const obj = JSON.parse(raw);
-    return (obj && typeof obj === "object") ? obj : {};
+    __hifzResultsCache = __normalizeHifzResultsMap(obj);
+    return __hifzResultsCache;
   }catch{
-    return {};
+    __hifzResultsCache = {};
+    return __hifzResultsCache;
   }
 }
 
 function saveHifzResults(obj){
+  const clean = __normalizeHifzResultsMap(obj);
+
+  __hifzResultsCache = clean;
+
   try{
-    localStorage.setItem(LS_HIFZ_RESULTS, JSON.stringify(obj || {}));
+    localStorage.setItem(LS_HIFZ_RESULTS, JSON.stringify(clean));
   }catch{}
+  try { window.__accountScheduleSync?.(); } catch(e) {}
 }
 
 function loadHifzRepeatTarget(){
+  if (Number.isFinite(__hifzRepeatTargetCache)) {
+    return __hifzRepeatTargetCache;
+  }
+
   try{
     const v = Number(localStorage.getItem(LS_HIFZ_REPEAT_TARGET) || 5);
-    if (Number.isFinite(v) && v >= 1 && v <= 100) return Math.floor(v);
+    if (Number.isFinite(v) && v >= 1 && v <= 100) {
+      __hifzRepeatTargetCache = Math.floor(v);
+      return __hifzRepeatTargetCache;
+    }
   }catch{}
-  return 5;
+
+  __hifzRepeatTargetCache = 5;
+  return __hifzRepeatTargetCache;
 }
 
 function saveHifzRepeatTarget(v){
   const n = Math.max(1, Math.min(100, Number(v) || 5));
+  __hifzRepeatTargetCache = n;
+
   try{
     localStorage.setItem(LS_HIFZ_REPEAT_TARGET, String(n));
   }catch{}
+  try { window.__accountScheduleSync?.(); } catch(e) {}
 }
+
+window.addEventListener("storage", (e) => {
+  if (!e) return;
+
+  if (e.key === LS_HIFZ_STAGE) {
+    hifzStageValue = loadHifzStageValue();
+  }
+
+  if (e.key === LS_HIFZ_RANGE) {
+    hifzRangeValue = loadHifzRangeValue();
+  }
+
+  if (e.key === LS_HIFZ_RESULTS || e.key === LS_HIFZ_REPEAT_TARGET) {
+    __resetHifzLocalCache();
+  }
+});
 
 function getHifzStageRow(ref, stage){
   const r = String(ref || "");
@@ -8352,6 +9513,144 @@ function setHifzResultForRef(ref, stage, result){
   saveHifzResults(map);
 }
 
+function getHifzBadRefsForStage(stage){
+  const s = String(stage || hifzStageValue || "1");
+  const map = loadHifzResults();
+  const out = [];
+
+  for (const ref of Object.keys(map || {})) {
+    if (!/^\d+:\d+$/.test(String(ref || ""))) continue;
+    if (getHifzResultForRef(ref, s) !== "bad") continue;
+    out.push(String(ref));
+  }
+
+  return _sortRefs(out);
+}
+
+function getHifzNavigableRefsForCurrentStage(){
+  const stage = String(hifzStageValue || "1");
+
+  if (stage === "7" || stage === "10") {
+    return _sortRefs(getAllRefs());
+  }
+
+  if (stage === "6" || stage === "8" || stage === "9") {
+    return _sortRefs(getCurrentSurahRefsForHifz(currentRef));
+  }
+
+  return _sortRefs(getStage1TestRefsForCurrentSurah());
+}
+
+function buildHifzBadRefsTopbarHtml(){
+  const stage = String(hifzStageValue || "1");
+  const stageMeta = getHifzStageMeta(stage);
+  const refs = getHifzBadRefsForStage(stage);
+  const count = refs.length;
+
+  const itemsHtml = refs.length
+    ? refs.map((ref) => `
+        <button class="hifzBadDropItem" type="button" data-hifz-bad-ref="${ref}" aria-label="Open ${escHifzStageText(ref)}">
+          <span class="hifzBadDropItemRef">${escHifzStageText(ref)}</span>
+        </button>
+      `).join("")
+    : `<div class="hifzBadDropEmpty">No ayahs marked as bad in ${escHifzStageText(stageMeta.title)}</div>`;
+
+  return `
+    <div class="hifzBadDrop" data-hifz-bad-drop>
+      <button class="hifzBadDropBtn" type="button" data-hifz-bad-toggle aria-haspopup="dialog" aria-expanded="false" aria-label="Show ayahs marked as bad">
+        <span class="hifzBadDropBtnLabel">ayahs marked as bad</span>
+        <span class="hifzBadDropBtnCount">${count}</span>
+        <span class="hifzBadDropBtnArrow" aria-hidden="true">▼</span>
+      </button>
+
+      <div class="hifzBadDropMenu" data-hifz-bad-menu>
+        <div class="hifzBadDropHead">${escHifzStageText(stageMeta.title)}</div>
+        ${itemsHtml}
+      </div>
+    </div>
+  `;
+}
+
+function bindHifzBadDropInView(view, onPickRef){
+  const scope = view && typeof view.querySelector === "function" ? view : null;
+  if (!scope) return;
+
+  const drop = scope.querySelector("[data-hifz-bad-drop]");
+  if (!drop || drop._bound) return;
+  drop._bound = true;
+
+  const btn = drop.querySelector("[data-hifz-bad-toggle]");
+
+  const close = () => {
+    drop.classList.remove("is-open");
+    if (btn) btn.setAttribute("aria-expanded", "false");
+  };
+
+  const toggle = () => {
+    const nextOpen = !drop.classList.contains("is-open");
+    drop.classList.toggle("is-open", nextOpen);
+    if (btn) btn.setAttribute("aria-expanded", nextOpen ? "true" : "false");
+  };
+
+  if (btn && !btn._bound) {
+    btn._bound = true;
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      toggle();
+    });
+  }
+
+  drop.addEventListener("click", (e) => {
+    const item = e.target.closest("[data-hifz-bad-ref]");
+    if (!item) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const ref = String(item.getAttribute("data-hifz-bad-ref") || "");
+    if (!/^\d+:\d+$/.test(ref)) return;
+
+    close();
+    if (typeof onPickRef === "function") onPickRef(ref);
+  });
+
+  if (!document.__hifzBadDropOutsideBound) {
+    document.__hifzBadDropOutsideBound = true;
+
+    document.addEventListener("click", (e) => {
+      document.querySelectorAll(".hifzBadDrop.is-open").forEach((openDrop) => {
+        if (openDrop.contains(e.target)) return;
+        openDrop.classList.remove("is-open");
+        const openBtn = openDrop.querySelector("[data-hifz-bad-toggle]");
+        if (openBtn) openBtn.setAttribute("aria-expanded", "false");
+      });
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      document.querySelectorAll(".hifzBadDrop.is-open").forEach((openDrop) => {
+        openDrop.classList.remove("is-open");
+        const openBtn = openDrop.querySelector("[data-hifz-bad-toggle]");
+        if (openBtn) openBtn.setAttribute("aria-expanded", "false");
+      });
+    });
+  }
+}
+
+function buildHifzBadRangeMessageHtml(ref){
+  return `
+    <div class="ayahCard ayahMainCard hifzRangeMissCard" data-hifz-range-miss="${escHifzStageText(ref)}">
+      <div class="hifzRangeMissInner">
+        <div class="hifzRangeMissRef">${escHifzStageText(ref)}</div>
+        <div class="hifzRangeMissText">Ayah not in range, adjust the range</div>
+      </div>
+    </div>
+  `;
+}
+
+
+
 function getStage1TestRefsForCurrentSurah(){
   const ay = getAyah(currentRef);
   const surahNo = ay?.surah || currentSurahInView || 1;
@@ -8390,7 +9689,145 @@ function getNextStage1Ref(ref){
   const cur = String(ref || currentRef || "");
   const idx = refs.indexOf(cur);
   if (idx < 0) return refs[0] || cur;
-  return refs[idx + 1] || cur;
+  return refs[idx + 1] || refs[0] || cur;
+}
+
+function getNextStage3Ref(ref){
+  const refs = getStage1TestRefsForCurrentSurah();
+  const cur = String(ref || currentRef || "");
+
+  if (!refs.length) return cur;
+
+  const pool = refs.filter((r) => r !== cur);
+  if (!pool.length) return refs[0] || cur;
+
+  return pool[Math.floor(Math.random() * pool.length)] || refs[0] || cur;
+}
+
+function getCurrentSurahRefsForHifz(ref){
+  const ay = getAyah(ref || currentRef);
+  const surahNo = ay?.surah || currentSurahInView || 1;
+  return (typeof getSuraRefs === "function") ? (getSuraRefs(surahNo) || []) : [];
+}
+
+function getNextStage5Ref(ref){
+  const refs = getStage1TestRefsForCurrentSurah();
+  const cur = String(ref || currentRef || "");
+
+  if (!refs.length) return cur;
+
+  const pool = refs.filter((r) => r !== cur);
+  if (!pool.length) return refs[0] || cur;
+
+  return pool[Math.floor(Math.random() * pool.length)] || refs[0] || cur;
+}
+
+function getNextStage6Ref(ref){
+  const refs = getCurrentSurahRefsForHifz(ref);
+  const cur = String(ref || currentRef || "");
+
+  if (!refs.length) return cur;
+
+  const pool = refs.filter((r) => r !== cur);
+  if (!pool.length) return refs[0] || cur;
+
+  return pool[Math.floor(Math.random() * pool.length)] || refs[0] || cur;
+}
+
+function getNextStage7Ref(ref){
+  const refs = getAllRefs();
+  const cur = String(ref || currentRef || "");
+
+  if (!refs.length) return cur;
+
+  const pool = refs.filter((r) => r !== cur);
+  if (!pool.length) return refs[0] || cur;
+
+  return pool[Math.floor(Math.random() * pool.length)] || refs[0] || cur;
+}
+
+function getNextStage8Ref(ref){
+  return getNextStage6Ref(ref);
+}
+
+function getNextStage9Ref(ref){
+  return getNextStage6Ref(ref);
+}
+
+function getNextStage10Ref(ref){
+  return getNextStage7Ref(ref);
+}
+
+function isHifzSingleFocusStage(stage){
+  const s = String(stage || "");
+  return ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"].includes(s);
+}
+
+function isHifzRangeLockedStage(stage){
+  const s = String(stage || "");
+  return s === "6" || s === "7" || s === "8" || s === "9" || s === "10";
+}
+
+function getHifzRangeUiValueForStage(stage){
+  const s = String(stage || "");
+
+  if (s === "7" || s === "10") return "all of quran";
+  if (s === "6" || s === "8" || s === "9") return "all of surah";
+
+  return String(hifzRangeValue || "5-10");
+}
+
+function isHifzStageWithoutRenderedRangeUi(stage){
+  const s = String(stage || "");
+  return s === "6" || s === "7" || s === "8" || s === "9" || s === "10";
+}
+
+function syncHifzRangeInputUi(input){
+  if (!input) return;
+
+  const stage = String(hifzStageValue || "1");
+  const locked = isHifzRangeLockedStage(stage);
+  const uiValue = getHifzRangeUiValueForStage(stage);
+
+  input.value = uiValue;
+  input.placeholder = uiValue;
+  input.readOnly = locked;
+  input.setAttribute("aria-readonly", locked ? "true" : "false");
+  input.inputMode = locked ? "none" : "text";
+}
+
+function getNextHifzFocusRef(ref){
+  const stage = String(hifzStageValue || "1");
+
+  if (stage === "10") {
+    return getNextStage10Ref(ref);
+  }
+
+  if (stage === "7") {
+    return getNextStage7Ref(ref);
+  }
+
+  if (stage === "9") {
+    return getNextStage9Ref(ref);
+  }
+
+  if (stage === "8") {
+    return getNextStage8Ref(ref);
+  }
+
+  if (stage === "6") {
+    return getNextStage6Ref(ref);
+  }
+
+  if (stage === "5") {
+    return getNextStage5Ref(ref);
+  }
+
+  if (stage === "3" || stage === "4") {
+    return getNextStage3Ref(ref);
+  }
+
+  return getNextStage1Ref(ref);
 }
 
 const __hifzRevealMap = Object.create(null);
@@ -8405,12 +9842,242 @@ function setHifzAyahRevealed(ref, on = true){
   __hifzRevealMap[r] = !!on;
 }
 
+const __hifzWriteStateMap = Object.create(null);
+
+function stripArabicMarksForHifzWrite(text){
+  return String(text || "")
+    .replace(/[۞۩]/g, "")
+    .replace(/[ۖۗۘۙۚۛۜ۝]/g, "")
+    .replace(/[،؛,.!؟:;"'«»()[\]{}]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isArabicWriteCombiningMark(ch){
+  return /[\u064B-\u065F\u0670\u06D6-\u06ED]/.test(String(ch || ""));
+}
+
+function segmentArabicWriteClusters(text){
+  const out = [];
+  let current = "";
+
+  for (const ch of Array.from(String(text || ""))) {
+    if (/\s/.test(ch)) {
+      if (current) {
+        out.push(current);
+        current = "";
+      }
+      out.push(" ");
+      continue;
+    }
+
+    if (ch === "ـ") {
+      continue;
+    }
+
+    if (isArabicWriteCombiningMark(ch)) {
+      if (current) {
+        current += ch;
+      } else if (out.length && out[out.length - 1] !== " ") {
+        out[out.length - 1] += ch;
+      }
+      continue;
+    }
+
+    if (current) {
+      out.push(current);
+    }
+    current = ch;
+  }
+
+  if (current) {
+    out.push(current);
+  }
+
+  return out;
+}
+
+function normalizeArabicWriteCompareChar(ch){
+  const raw = String(ch || "");
+
+  if (!raw) return "";
+
+  if (/\s/.test(raw)) {
+    return " ";
+  }
+
+  return raw
+    .replace(/[ـ]/g, "")
+    .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, "")
+    .trim();
+}
+
+function buildHifzWriteModelForRef(ref){
+  const a = getAyah(ref);
+  const raw = stripArabicMarksForHifzWrite(
+    a?.textAr ||
+    a?.textUthmani ||
+    a?.uthmani ||
+    a?.text ||
+    ""
+  );
+
+  const sourceTokens = segmentArabicWriteClusters(raw);
+  const tokens = [];
+
+  for (const token of sourceTokens) {
+    if (token === " ") {
+      tokens.push({
+        char: " ",
+        expected: " ",
+        isSpace: true
+      });
+      continue;
+    }
+
+    const expected = normalizeArabicWriteCompareChar(token);
+    if (!expected) continue;
+
+    tokens.push({
+      char: token,
+      expected,
+      isSpace: false
+    });
+  }
+
+  return {
+    raw,
+    tokens,
+    targetChars: tokens.map((t) => t.expected),
+    displayText: tokens.map((t) => t.char).join("")
+  };
+}
+
+function getHifzWriteStateForRef(ref){
+  const r = String(ref || "");
+
+  if (!/^\d+:\d+$/.test(r)) {
+    return {
+      cursor: 0,
+      wrongCount: 0,
+      flashGoodTokenIndex: -1,
+      flashBadChar: "",
+      flashBadTokenIndex: -1,
+      showFullErrorPreview: false,
+      flashTick: 0,
+      lockUntil: 0,
+      navToken: 0
+    };
+  }
+
+  if (__hifzWriteStateMap[r] && typeof __hifzWriteStateMap[r] === "object") {
+    return __hifzWriteStateMap[r];
+  }
+
+  __hifzWriteStateMap[r] = {
+    cursor: 0,
+    wrongCount: 0,
+    flashGoodTokenIndex: -1,
+    flashBadChar: "",
+    flashBadTokenIndex: -1,
+    showFullErrorPreview: false,
+    flashTick: 0,
+    lockUntil: 0,
+    navToken: 0
+  };
+
+  return __hifzWriteStateMap[r];
+}
+
+function clearHifzWriteFlashForRef(ref){
+  const st = getHifzWriteStateForRef(ref);
+  st.flashGoodTokenIndex = -1;
+  st.flashBadChar = "";
+  st.flashBadTokenIndex = -1;
+  st.showFullErrorPreview = false;
+}
+
+function resetHifzWriteStateForRef(ref){
+  const r = String(ref || "");
+  if (!/^\d+:\d+$/.test(r)) return;
+  delete __hifzWriteStateMap[r];
+}
+
+function consumeHifzWriteInput(ref, rawInput){
+  const r = String(ref || "");
+  if (!/^\d+:\d+$/.test(r)) return { status: "noop" };
+  if (!["8", "9", "10"].includes(String(hifzStageValue || "1"))) return { status: "noop" };
+
+  const model = buildHifzWriteModelForRef(r);
+  if (!model.targetChars.length) return { status: "noop" };
+
+  const state = getHifzWriteStateForRef(r);
+  const units = segmentArabicWriteClusters(String(rawInput || ""));
+  let progressed = false;
+
+  for (const unit of units) {
+    const normalized = normalizeArabicWriteCompareChar(unit);
+    if (!normalized) continue;
+
+    const expected = String(model.targetChars[state.cursor] || "");
+    if (!expected) {
+      return { status: "good" };
+    }
+
+    if (normalized === expected) {
+      const tokenIndex = Number(state.cursor || 0);
+      state.cursor = Math.min(model.targetChars.length, tokenIndex + 1);
+      state.flashGoodTokenIndex = tokenIndex;
+      state.flashBadChar = "";
+      state.flashBadTokenIndex = -1;
+      state.showFullErrorPreview = false;
+      progressed = true;
+      continue;
+    }
+
+    state.wrongCount = Math.max(0, Number(state.wrongCount) || 0) + 1;
+    state.flashBadChar = /\s/.test(unit) ? " " : unit;
+    state.flashBadTokenIndex = Number(state.cursor || 0);
+    state.flashGoodTokenIndex = -1;
+    state.showFullErrorPreview = state.wrongCount >= 2;
+
+    return {
+      status: state.wrongCount >= 2 ? "bad" : "wrong",
+      wrongCount: state.wrongCount,
+      wrongChar: unit
+    };
+  }
+
+  if (state.cursor >= model.targetChars.length) {
+    return { status: "good" };
+  }
+
+  return { status: progressed ? "progress" : "noop" };
+}
+
 function getPrevStage1Ref(ref){
-  const refs = getStage1TestRefsForCurrentSurah();
   const cur = String(ref || currentRef || "");
+  const a = getAyah(cur);
+
+  if (a) {
+    const surahNo = Number(a.surah || currentSurahInView || 0);
+    const ayahNo = Number(a.ayah || 0);
+
+    if (surahNo >= 1 && ayahNo > 1) {
+      const directPrev = `${surahNo}:${ayahNo - 1}`;
+      const prevAyah = getAyah(directPrev);
+
+      if (prevAyah && Number(prevAyah.surah || 0) === surahNo) {
+        return directPrev;
+      }
+    }
+  }
+
+  const refs = getStage1TestRefsForCurrentSurah();
   const idx = refs.indexOf(cur);
-  if (idx <= 0) return "";
-  return refs[idx - 1] || "";
+  if (idx > 0) return refs[idx - 1] || "";
+
+  return "";
 }
 
 function getFirstArabicWordForRef(ref){
@@ -8472,15 +10139,6 @@ function buildHifzRecallActionsHtml(a, esc){
 
       <div class="hifzRecallActions">
         <button
-          class="hifzRecallBtn hifzRecallGood${result === "good" ? " is-active" : ""}"
-          type="button"
-          data-hifz-mark="good"
-          data-hifz-ref="${ref}"
-          aria-label="Mark ${esc(ref)} as good">
-          Good
-        </button>
-
-        <button
           class="hifzRecallBtn hifzRecallBad${result === "bad" ? " is-active" : ""}"
           type="button"
           data-hifz-mark="bad"
@@ -8488,18 +10146,27 @@ function buildHifzRecallActionsHtml(a, esc){
           aria-label="Mark ${esc(ref)} as bad">
           Bad
         </button>
+
+        <button
+          class="hifzRecallBtn hifzRecallGood${result === "good" ? " is-active" : ""}"
+          type="button"
+          data-hifz-mark="good"
+          data-hifz-ref="${ref}"
+          aria-label="Mark ${esc(ref)} as good">
+          Good
+        </button>
       </div>
     </div>
   `;
 }
 
-function buildHifzAyahBodyHtml(a, wordsHtml, esc){
+function buildHifzAyahHeaderHtml(a, mp3, esc){
   const ref = String(a?.ref || "");
   const stage = String(hifzStageValue || "1");
   const ratio = getHifzProgressRatioForRef(ref, stage);
   const result = getHifzResultForRef(ref, stage);
-  const goodCount = getHifzGoodCountForRef(ref, stage);
-  const repeatTarget = loadHifzRepeatTarget();
+  const bmSetLocal = new Set(getActiveFavRefs());
+  const progressPct = Math.max(0, Math.min(100, Math.round(ratio * 100)));
 
   const progressAttr = `style="--hifz-progress:${ratio};"`;
   const stateClass =
@@ -8507,9 +10174,218 @@ function buildHifzAyahBodyHtml(a, wordsHtml, esc){
       ? " is-hifz-bad"
       : (ratio >= 1 ? " is-hifz-mastered" : (ratio > 0 ? " is-hifz-progress" : ""));
 
+  return `
+    <div class="ayahHeaderRow hifzAyahHeaderRow${stateClass}" data-hifz-header="${ref}" ${progressAttr}>
+      <div class="hifzAyahProgress" data-progress-label="${progressPct}%"></div>
+
+      <div class="ayahRefRow">
+        <button class="ayahBtn ayahPlay playAyah" type="button" data-audio="${mp3}" aria-label="Play Ayah"></button>
+<button class="ayahBtn favContinuePlayBtn" type="button" data-ref="${ref}" aria-label="Continue Favorites from ${ref}" title="Continue from here">⟲</button>
+        <div class="ayahRef">${ref}</div>
+
+        <button class="ayahBtn ayahBm${bmSetLocal.has(ref) ? " is-on" : ""}"
+          type="button"
+          data-bm="${ref}"
+          aria-label="Bookmark ${ref}"
+          title="Bookmark"></button>
+
+<button class="ayahCopy ayahCopyBtn"
+  type="button"
+  data-copy="${ref}"
+  aria-label="Copy ${ref}"
+  title="Copy">
+  <svg class="copyIcon" viewBox="0 0 24 24" aria-hidden="true">
+    <rect x="9" y="9" width="11" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="2"></rect>
+    <rect x="4" y="4" width="11" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="2"></rect>
+  </svg>
+</button>
+
+<button class="ayahNote ayahNoteBtn"
+  type="button"
+  data-note="${ref}"
+  aria-label="Notes ${ref}"
+  title="Notes">
+  <svg class="noteIcon" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M7 3h8a2 2 0 0 1 2 2v14l-6-3-6 3V5a2 2 0 0 1 2-2z"
+      fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M9 7h6M9 10h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+  </svg>
+</button>
+
+<button class="ayahContinueBtn"
+  type="button"
+  data-continue="${ref}"
+  data-surah="${a.surah}"
+  data-ayah="${a.ayah}"
+  aria-label="Continue ${ref}"
+  title="Continue">
+  <span class="ayahContinueIcon" aria-hidden="true">▶</span>
+  <span class="ayahContinueText">continue</span>
+</button>
+      </div>
+
+      <div class="ayahHeaderRight"></div>
+    </div>
+  `;
+}
+
+const __hifzWriteResultFlashMap = Object.create(null);
+
+function buildHifzWriteStageHtml(a, esc){
+  const ref = String(a?.ref || "");
+  const stage = String(hifzStageValue || "1");
+  const goodCount = getHifzGoodCountForRef(ref, stage);
+  const repeatTarget = loadHifzRepeatTarget();
+  const stageMeta = HIFZ_STAGE_META[String(stage)] || {};
+  const wantsPrevAyahHelper = /Previous ayah/i.test(String(stageMeta.assist || ""));
+
+  const prevRefForHelper = wantsPrevAyahHelper ? getPrevStage1Ref(ref) : "";
+  const prevAyahForHelper = prevRefForHelper ? getAyah(prevRefForHelper) : null;
+  const prevWordsHtmlForHelper = prevAyahForHelper
+    ? buildWordSpans({ ...prevAyahForHelper, ayahNo: prevAyahForHelper.ayah })
+    : "";
+  const prevTranslationsHtmlForHelper = prevAyahForHelper
+    ? buildAyahTranslationsHtml(prevAyahForHelper, esc)
+    : "";
+
+  const model = buildHifzWriteModelForRef(ref);
+  const writeState = getHifzWriteStateForRef(ref);
+  const visibleTokenCount = Math.max(0, Math.min(model.targetChars.length, Number(writeState.cursor) || 0));
+  const flashGoodTokenIndex = Number(writeState.flashGoodTokenIndex);
+  const flashBadTokenIndex = Number(writeState.flashBadTokenIndex);
+  const badChar = String(writeState.flashBadChar || "");
+  const showFullErrorPreview = !!writeState.showFullErrorPreview && !!badChar;
+  const resultFlash = String(__hifzWriteResultFlashMap[ref] || "");
+  const safeInputId = `hifzWriteInput-${ref.replace(/:/g, "-")}`;
+  const fullWriteText = String(model.displayText || "");
+
+  let revealHtml = "";
+
+  if (showFullErrorPreview) {
+    for (let i = 0; i < model.tokens.length; i += 1) {
+      const token = model.tokens[i];
+      if (!token) continue;
+
+      if (i < visibleTokenCount) {
+        revealHtml += esc(token.char);
+        continue;
+      }
+
+      if (i === flashBadTokenIndex) {
+        const baseHtml = token.isSpace
+          ? `<span class="hifzWriteErrorStackBase is-space" aria-hidden="true">&nbsp;</span>`
+          : `<span class="hifzWriteErrorStackBase">${esc(token.char)}</span>`;
+
+        const overlayHtml = /\s/.test(badChar)
+          ? `<span class="hifzWriteTextErrorInline is-space" aria-hidden="true">&nbsp;</span>`
+          : `<span class="hifzWriteTextErrorInline">${esc(badChar)}</span>`;
+
+        revealHtml += `<span class="hifzWriteErrorStack${token.isSpace ? " is-space" : ""}">${baseHtml}${overlayHtml}</span>`;
+        continue;
+      }
+
+      revealHtml += esc(token.char);
+    }
+  } else {
+    let revealedStableText = "";
+    let flashTokenHtml = "";
+
+    for (let i = 0; i < visibleTokenCount; i += 1) {
+      const token = model.tokens[i];
+      if (!token) continue;
+
+      if (i === flashGoodTokenIndex) {
+        flashTokenHtml = token.isSpace
+          ? `<span class="hifzWriteTextFlash is-space" aria-hidden="true">&nbsp;</span>`
+          : `<span class="hifzWriteTextFlash">${esc(token.char)}</span>`;
+      } else {
+        revealedStableText += token.char;
+      }
+    }
+
+    const caretHtml =
+      visibleTokenCount < model.tokens.length && !resultFlash
+        ? `<span class="hifzWriteCaret" aria-hidden="true"></span>`
+        : "";
+
+    revealHtml = `${esc(revealedStableText)}${flashTokenHtml}${caretHtml}`;
+  }
+
+  const hintHtml =
+    visibleTokenCount === 0 && !badChar && !resultFlash
+      ? `<span class="hifzWriteInputHint">Tap here and write in Arabic</span>`
+      : "";
+
+  const wrongHtml =
+    badChar && !showFullErrorPreview
+      ? (
+          /\s/.test(badChar)
+            ? `<span class="hifzWriteWrongGhost is-space" aria-hidden="true">&nbsp;</span>`
+            : `<span class="hifzWriteWrongGhost">${esc(badChar)}</span>`
+        )
+      : "";
+
+  const resultBadgeHtml =
+    resultFlash === "good"
+      ? `<span class="hifzWriteResultBadgeInline is-good">Correct</span>`
+      : resultFlash === "bad"
+          ? `<span class="hifzWriteResultBadgeInline is-bad">Bad</span>`
+          : "";
+
+  return `
+    ${prevWordsHtmlForHelper ? `
+      <div class="hifzStage1PrevLabel">Previous ayah</div>
+      <div class="ayahText">${prevWordsHtmlForHelper}</div>
+      ${prevTranslationsHtmlForHelper}
+    ` : ""}
+
+    <div class="hifzStage1FocusLabel">Write ${esc(ref)}</div>
+
+    <div class="hifzWriteStageBox">
+      <div
+        class="hifzWriteInputShell${badChar ? " is-flash-bad" : ""}${resultFlash === "good" ? " is-result-good" : ""}${resultFlash === "bad" ? " is-result-bad" : ""}"
+        data-hifz-write-shell="${ref}"
+        aria-label="Write ${esc(ref)} in Arabic">
+        <input
+          class="hifzWriteInput"
+          id="${safeInputId}"
+          type="text"
+          inputmode="text"
+          autocomplete="off"
+          autocapitalize="off"
+          autocorrect="off"
+          spellcheck="false"
+          dir="rtl"
+          lang="ar"
+          enterkeyhint="done"
+          data-hifz-write-input="${ref}"
+          aria-label="Write ${esc(ref)} in Arabic"
+          placeholder=" ">
+
+        <div class="hifzWriteInputView" aria-hidden="true">
+          <span class="hifzWriteTextGhost">${esc(fullWriteText)}</span>
+          <span class="hifzWriteTextReveal">${revealHtml}</span>
+          ${hintHtml}
+          ${wrongHtml}
+        </div>
+      </div>
+    </div>
+
+    <div class="hifzWriteMetaRow">
+      <div class="hifzRepeatMeta">${goodCount}/${repeatTarget} right</div>
+      ${resultBadgeHtml}
+    </div>
+  `;
+}
+
+function buildHifzAyahBodyHtml(a, wordsHtml, esc){
+  const ref = String(a?.ref || "");
+  const stage = String(hifzStageValue || "1");
+  const goodCount = getHifzGoodCountForRef(ref, stage);
+  const repeatTarget = loadHifzRepeatTarget();
+
   const progressTop = `
-    <div class="hifzAyahBody${stateClass}" data-hifz-body="${ref}" ${progressAttr}>
-      <div class="hifzAyahProgress"></div>
+    <div class="hifzAyahBody" data-hifz-body="${ref}">
       <div class="hifzAyahInner">
   `;
 
@@ -8518,9 +10394,37 @@ function buildHifzAyahBodyHtml(a, wordsHtml, esc){
     </div>
   `;
 
-  if (stage !== "1") {
+  if (stage === "8" || stage === "9" || stage === "10") {
     return `
       ${progressTop}
+        ${buildHifzWriteStageHtml(a, esc)}
+      ${progressBottom}
+    `;
+  }
+
+  const stageMeta = HIFZ_STAGE_META[String(stage)] || {};
+  const wantsPrevAyahHelper = /Previous ayah/i.test(String(stageMeta.assist || ""));
+  const focusRefForHelper = String(currentRef || ref || "");
+  const prevRefForHelper = wantsPrevAyahHelper ? getPrevStage1Ref(focusRefForHelper) : "";
+  const prevAyahForHelper = prevRefForHelper ? getAyah(prevRefForHelper) : null;
+  const prevWordsHtmlForHelper = prevAyahForHelper
+    ? buildWordSpans({ ...prevAyahForHelper, ayahNo: prevAyahForHelper.ayah })
+    : "";
+  const prevTranslationsHtmlForHelper = prevAyahForHelper
+    ? buildAyahTranslationsHtml(prevAyahForHelper, esc)
+    : "";
+
+  const isSingleFocusStage = isHifzSingleFocusStage(stage);
+
+  if (!isSingleFocusStage) {
+    return `
+      ${progressTop}
+        ${(ref === focusRefForHelper && prevWordsHtmlForHelper) ? `
+        <div class="hifzStage1PrevLabel">Previous ayah</div>
+        <div class="ayahText">${prevWordsHtmlForHelper}</div>
+        ${prevTranslationsHtmlForHelper}
+        ` : ""}
+
         <div class="ayahText">${wordsHtml}</div>
         ${buildAyahTranslationsHtml(a, esc)}
         ${buildHifzRecallActionsHtml(a, esc)}
@@ -8536,13 +10440,42 @@ function buildHifzAyahBodyHtml(a, wordsHtml, esc){
   const revealed = isHifzAyahRevealed(ref);
   const firstWord = getFirstArabicWordForRef(ref);
 
+  const prevAyah = prevRef ? getAyah(prevRef) : null;
+  const prevWordsHtml = prevAyah
+    ? buildWordSpans({ ...prevAyah, ayahNo: prevAyah.ayah })
+    : "";
+  const prevTranslationsHtml = prevAyah
+    ? buildAyahTranslationsHtml(prevAyah, esc)
+    : "";
+
+  const showPrevAyahHelper = stage === "1" || stage === "2" || stage === "3" || stage === "4";
+
+  const focusHeadingHtml =
+    stage === "5" || stage === "6" || stage === "7"
+      ? ""
+      : `<div class="hifzStage1FocusLabel">Current ayah</div>`;
+
+  const hiddenCurrentAyahHtml =
+    (stage === "5" || stage === "6" || stage === "7")
+      ? `
+        <div class="hifzStage1FocusLabel">${esc(ref)}</div>
+      `
+      : (stage === "2" || stage === "4")
+          ? `
+        <div class="ayahText hifzFirstWordOnly" dir="rtl" lang="ar">
+          <span class="hifzFirstWordDots" aria-hidden="true">....</span>
+        </div>
+      `
+          : `
+        <div class="ayahText hifzFirstWordOnly" dir="rtl" lang="ar">
+          <span class="hifzFirstWord" dir="rtl" lang="ar">${esc(firstWord || "…")}</span><span class="hifzFirstWordDots" aria-hidden="true"> ...</span>
+        </div>
+      `;
+
   if (isPrev) {
     return `
       ${progressTop}
-        <div class="hifzStage1PrevLabel">Previous ayah</div>
-        <div class="ayahText">${wordsHtml}</div>
-        ${buildAyahTranslationsHtml(a, esc)}
-        ${buildHifzRecallActionsHtml(a, esc)}
+        <div class="hifzHiddenLabel">Helper ayah</div>
         <div class="hifzRepeatMeta">${goodCount}/${repeatTarget} right</div>
       ${progressBottom}
     `;
@@ -8551,39 +10484,43 @@ function buildHifzAyahBodyHtml(a, wordsHtml, esc){
   if (isFocus && !revealed) {
     return `
       ${progressTop}
-        <div class="hifzStage1FocusLabel">Current ayah</div>
-        <div class="ayahText hifzFirstWordOnly" dir="rtl" lang="ar">
-          <span class="hifzFirstWord" dir="rtl" lang="ar">${esc(firstWord || "…")}</span><span class="hifzFirstWordDots" aria-hidden="true"> ...</span>
-        </div>
-        <div class="hifzHiddenActions">
+        ${showPrevAyahHelper && prevWordsHtml ? `
+        <div class="hifzStage1PrevLabel">Previous ayah</div>
+        <div class="ayahText">${prevWordsHtml}</div>
+        ${prevTranslationsHtml}
+        ` : ""}
+
+        ${focusHeadingHtml}
+        ${hiddenCurrentAyahHtml}
+
+        <div class="hifzHiddenBox">
           <button
             class="hifzUnhideBtn"
             type="button"
             data-hifz-unhide="${ref}"
-            aria-label="Unhide ayah ${esc(ref)}">
-            Unhide ayah
+            aria-label="Show ${esc(ref)}">
+            Show ayah
           </button>
         </div>
+
         <div class="hifzRepeatMeta">${goodCount}/${repeatTarget} right</div>
       ${progressBottom}
     `;
   }
 
-  if (!isFocus && !isPrev && !revealed) {
+  if (isFocus && revealed) {
     return `
       ${progressTop}
-        <div class="hifzHiddenBox">
-          <div class="hifzHiddenLabel">Ayah hidden</div>
-          <div class="hifzHiddenActions">
-            <button
-              class="hifzUnhideBtn"
-              type="button"
-              data-hifz-unhide="${ref}"
-              aria-label="Unhide ayah ${esc(ref)}">
-              Unhide ayah
-            </button>
-          </div>
-        </div>
+        ${showPrevAyahHelper && prevWordsHtml ? `
+        <div class="hifzStage1PrevLabel">Previous ayah</div>
+        <div class="ayahText">${prevWordsHtml}</div>
+        ${prevTranslationsHtml}
+        ` : ""}
+
+        <div class="hifzStage1FocusLabel">Current ayah</div>
+        <div class="ayahText">${wordsHtml}</div>
+        ${buildAyahTranslationsHtml(a, esc)}
+        ${buildHifzRecallActionsHtml(a, esc)}
         <div class="hifzRepeatMeta">${goodCount}/${repeatTarget} right</div>
       ${progressBottom}
     `;
@@ -8591,9 +10528,7 @@ function buildHifzAyahBodyHtml(a, wordsHtml, esc){
 
   return `
     ${progressTop}
-      <div class="ayahText">${wordsHtml}</div>
-      ${buildAyahTranslationsHtml(a, esc)}
-      ${buildHifzRecallActionsHtml(a, esc)}
+      <div class="hifzHiddenLabel">Ayah hidden</div>
       <div class="hifzRepeatMeta">${goodCount}/${repeatTarget} right</div>
     ${progressBottom}
   `;
@@ -8870,6 +10805,10 @@ const sm = getSuraMeta(surah);
 
 const refsRaw = renderAll ? getAllRefs() : ((typeof getSuraRefs === "function") ? getSuraRefs(surah) : []);
 
+const stageNow = String(hifzStageValue || "1");
+const useWholeQuranRange = renderAll || stageNow === "7" || stageNow === "10";
+const useWholeSurahRange = stageNow === "6" || stageNow === "8" || stageNow === "9";
+
 const rawRange = String(hifzRangeValue || "5-10").trim();
 const mRange = rawRange.match(/^(\d+)\s*-\s*(\d+)$/);
 
@@ -8891,65 +10830,76 @@ const maxAyah = Number(sm?.ayahCount || refsRaw.length || 1);
 fromAyah = Math.min(fromAyah, maxAyah);
 toAyah = Math.min(toAyah, maxAyah);
 
-const refs = renderAll
+const refsInRange = useWholeQuranRange
   ? refsRaw
   : refsRaw.filter((r) => {
       const a = getAyah(r);
       if (!a || a.surah !== surah) return false;
+
+      if (useWholeSurahRange) {
+        return true;
+      }
+
       return a.ayah >= fromAyah && a.ayah <= toAyah;
     });
+
+const refs =
+  isHifzSingleFocusStage(stageNow)
+    ? refsInRange.filter((r) => r === String(currentRef || ""))
+    : refsInRange;
 
   const modeText = "Train";
 
   // ✅ Ayah-Mode = Test-Mode
-  const topBarHtml = renderAll ? "" : `
-    <div class="surahTopBar ayahTopBar hifzTestTopBar">
-      <div class="surahTopFarLeft">
-        <select class="hifzStageSelect" id="hifzStageSelectTop" aria-label="Choose Hifz level">
-          <option value="1"${hifzStageValue === "1" ? " selected" : ""}>Stage 1</option>
-          <option value="2"${hifzStageValue === "2" ? " selected" : ""}>Stage 2</option>
-          <option value="3"${hifzStageValue === "3" ? " selected" : ""}>Stage 3</option>
-          <option value="4"${hifzStageValue === "4" ? " selected" : ""}>Stage 4</option>
-          <option value="5"${hifzStageValue === "5" ? " selected" : ""}>Stage 5</option>
-          <option value="6"${hifzStageValue === "6" ? " selected" : ""}>Stage 6</option>
-          <option value="7"${hifzStageValue === "7" ? " selected" : ""}>Stage 7</option>
-          <option value="8"${hifzStageValue === "8" ? " selected" : ""}>Stage 8</option>
-          <option value="9"${hifzStageValue === "9" ? " selected" : ""}>Stage 9</option>
-          <option value="10"${hifzStageValue === "10" ? " selected" : ""}>Stage 10</option>
-        </select>
+const topBarHtml = renderAll ? "" : `
+  <div class="surahTopBar ayahTopBar hifzTestTopBar">
+    <div class="surahTopFarLeft">
+      ${buildHifzStageDropdownHtml(hifzStageValue)}
 
+      <div class="hifzRepeatSelectWrap">
         <select class="hifzRepeatSelect" id="hifzRepeatTargetTop" aria-label="How often repeated the ayah right to mark it as learned">
-          ${Array.from({ length: 100 }, (_, i) => {
-            const n = i + 1;
-            const sel = n === loadHifzRepeatTarget() ? ' selected' : '';
-            return `<option value="${n}"${sel}>${n}x right</option>`;
-          }).join("")}
+          ${(() => {
+            const values = [
+              ...Array.from({ length: 100 }, (_, i) => i + 1),
+              ...Array.from({ length: 9 }, (_, i) => (i + 2) * 100),
+              ...Array.from({ length: 18 }, (_, i) => 1500 + (i * 500))
+            ];
+
+            return values.map((n) => {
+              const sel = n === loadHifzRepeatTarget() ? ' selected' : '';
+              return `<option value="${n}"${sel}>${n}x right</option>`;
+            }).join("");
+          })()}
         </select>
-
-        <input
-          class="hifzRangeInput"
-          id="hifzRangeInputTopAyah"
-          type="text"
-          inputmode="text"
-          value="5-10"
-          placeholder="5-10"
-          aria-label="Ayah range to test">
+        <span class="hifzRepeatArrow" aria-hidden="true">▼</span>
       </div>
 
-      <div class="surahTopLeft">
-        <div class="surahTitle surahTopTitle">
-          <span class="sEn">Test your skill</span>
-        </div>
-      </div>
+      <input
+        class="hifzRangeInput"
+        id="hifzRangeInputTopAyah"
+        type="text"
+        inputmode="text"
+        value="5-10"
+        placeholder="5-10"
+        aria-label="Ayah range to test">
+    </div>
 
-      <div class="surahTopRight">
-        <button class="surahModeBtn" type="button" data-action="toggleView" title="Switch to train mode">
-          <span class="modeText">${modeText}</span>
-          <span class="modeArrow">→</span>
-        </button>
+    <div class="surahTopLeft">
+      <div class="surahTitle surahTopTitle">
+        <span class="sEn">Test your skill</span>
       </div>
     </div>
-  `;
+
+    <div class="surahTopRight">
+      ${buildHifzBadRefsTopbarHtml()}
+
+      <button class="surahModeBtn" type="button" data-action="toggleView" title="Switch to train mode">
+        <span class="modeText">${modeText}</span>
+        <span class="modeArrow">→</span>
+      </button>
+    </div>
+  </div>
+`;
 
 // Basmallah Card (mit Übersetzungen aus activeTranslations; nimmt 1:1 als Basm-Text)
 const basmCardHtml = (surahNo) => {
@@ -8972,23 +10922,345 @@ const basmCardHtml = (surahNo) => {
   `;
 };
 
-const basmHtml = (!renderAll && fromAyah === 1) ? basmCardHtml(surah) : "";
+function getHifzSurahProgressPct(surahNo){
+  try{
+    const stage = String(hifzStageValue || "1");
+    const refs = getSuraRefs(Number(surahNo) || 0) || [];
+    if (!refs.length) return 0;
 
-view.innerHTML = topBarHtml + basmHtml + `<div class="allCardsMount"></div>`;
+    let sum = 0;
+    let count = 0;
+
+    for (const ref of refs){
+      const ratio = Number(getHifzProgressRatioForRef(ref, stage) || 0);
+      sum += Math.max(0, Math.min(1, ratio));
+      count += 1;
+    }
+
+    if (!count) return 0;
+    return Math.max(0, Math.min(100, Math.round((sum / count) * 100)));
+  }catch{
+    return 0;
+  }
+}
+
+
+function buildHifzSurahSummaryHtml(){
+  let cells = "";
+
+  for (let s = 1; s <= 114; s++){
+    const pct = getHifzSurahProgressPct(s);
+    const ratio = pct / 100;
+    const smx = getSuraMeta(s) || {};
+    const surahAr = esc(smx?.nameAr ?? "");
+    const surahTr = esc(smx?.nameTranslit ?? `Surah ${s}`);
+
+    cells += `
+      <div class="hifzSurahSummaryCell${pct > 0 ? " is-progress" : ""}${pct >= 100 ? " is-mastered" : ""}"
+           style="--surah-progress:${ratio};"
+           data-surah="${s}"
+           data-pct="${pct}"
+           data-tip-ref="Surah ${s}"
+           data-tip-ar="${surahAr}"
+           data-tip-tr="${surahTr} • ${pct}%">
+        <div class="hifzSurahSummaryCellInner" aria-hidden="true">
+          <span class="hifzSurahSummaryNo">${s}</span>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="ayahCard hifzSurahSummaryCard">
+      <div class="hifzSurahSummaryHeader">
+        <div class="hifzSurahSummaryTitle">Surah Progress</div>
+      </div>
+      <div class="hifzSurahSummaryGrid">
+        ${cells}
+      </div>
+    </div>
+  `;
+}
+
+const basmHtml = "";
+
+view.innerHTML =
+  topBarHtml +
+  basmHtml +
+  `<div class="allCardsMount"></div>` +
+  `<div class="hifzSurahSummaryMount"></div>`;
+
 const mount = view.querySelector(".allCardsMount");
+const surahSummaryMount = view.querySelector(".hifzSurahSummaryMount");
 
+if (surahSummaryMount) {
+  surahSummaryMount.innerHTML = buildHifzSurahSummaryHtml();
+
+  let _lastSurahSummaryTipKey = "";
+
+  const _surahSummaryEscTip = (s) =>
+    String(s ?? "").replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;"
+    }[c]));
+
+  const _surahSummaryTipEl = (() => {
+    let el = document.getElementById("suraProgTip");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "suraProgTip";
+      el.className = "suraProgTip";
+      document.body.appendChild(el);
+    }
+    return el;
+  })();
+
+  const _surahSummaryHideTip = () => {
+    _lastSurahSummaryTipKey = "";
+    if (_surahSummaryTipEl) {
+      _surahSummaryTipEl.classList.remove("is-show");
+      _surahSummaryTipEl.style.left = "-9999px";
+      _surahSummaryTipEl.style.top = "-9999px";
+    }
+  };
+
+  const _surahSummaryPlaceTip = (tipEl, x, y) => {
+    if (typeof _placeTip === "function") {
+      _placeTip(tipEl, x, y);
+      return;
+    }
+
+    if (!tipEl) return;
+
+    tipEl.classList.add("is-show");
+
+    const stageEl = document.getElementById("stage");
+    const stageRect = stageEl
+      ? stageEl.getBoundingClientRect()
+      : { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
+
+    const pad = Math.max(8, window.innerWidth * 0.008);
+    const gapY = Math.max(10, window.innerHeight * 0.012);
+
+    const rect = tipEl.getBoundingClientRect();
+
+    let left = x - rect.width / 2;
+    const spaceBelow = stageRect.bottom - (y + gapY);
+    const spaceAbove = (y - gapY) - stageRect.top;
+
+    let top = (spaceBelow >= rect.height + pad)
+      ? (y + gapY)
+      : (y - gapY - rect.height);
+
+    left = Math.max(stageRect.left + pad, Math.min(left, stageRect.right - rect.width - pad));
+    top = Math.max(stageRect.top + pad, Math.min(top, stageRect.bottom - rect.height - pad));
+
+    tipEl.style.left = `${left}px`;
+    tipEl.style.top = `${top}px`;
+  };
+
+  const _surahSummaryTooltipsAllowed = () => {
+    if (typeof tooltipsAllowed === "function") return !!tooltipsAllowed();
+    return true;
+  };
+
+  const _renderSurahSummaryTip = (cell, clientX, clientY) => {
+    if (!cell) {
+      _surahSummaryHideTip();
+      return;
+    }
+
+    if (!_surahSummaryTooltipsAllowed()) {
+      _surahSummaryHideTip();
+      return;
+    }
+
+    const key = `${cell.dataset.surah || ""}|${cell.dataset.pct || ""}`;
+
+    if (_lastSurahSummaryTipKey !== key) {
+      _lastSurahSummaryTipKey = key;
+
+      _surahSummaryTipEl.innerHTML = `
+        <div class="tipRef">${_surahSummaryEscTip(cell.dataset.tipRef || "")}</div>
+        <div class="tipAr" dir="rtl" lang="ar">${cell.dataset.tipAr || ""}</div>
+        <div class="tipTr">${_surahSummaryEscTip(cell.dataset.tipTr || "")}</div>
+      `;
+    }
+
+    _surahSummaryPlaceTip(_surahSummaryTipEl, clientX, clientY);
+  };
+
+  surahSummaryMount.addEventListener("mouseenter", (e) => {
+    const cell = e.target.closest?.(".hifzSurahSummaryCell[data-surah]");
+    if (!cell) return;
+    _renderSurahSummaryTip(cell, e.clientX, e.clientY);
+  }, true);
+
+  surahSummaryMount.addEventListener("mousemove", (e) => {
+    const cell = e.target.closest?.(".hifzSurahSummaryCell[data-surah]");
+    if (!cell) {
+      _surahSummaryHideTip();
+      return;
+    }
+
+    _renderSurahSummaryTip(cell, e.clientX, e.clientY);
+  }, { passive: true });
+
+  surahSummaryMount.addEventListener("mouseleave", () => {
+    _surahSummaryHideTip();
+  });
+}
 const hifzStageSelectTop = view.querySelector("#hifzStageSelectTop");
+const hifzStageDropTop = view.querySelector("#hifzStageDropTop");
+const hifzStageDropBtnTop = view.querySelector("#hifzStageDropBtnTop");
+const hifzStageDropMenuTop = view.querySelector("#hifzStageDropMenuTop");
+const hifzStageDropLabelTop = view.querySelector("#hifzStageDropLabelTop");
+
 if (hifzStageSelectTop && !hifzStageSelectTop._bound) {
   hifzStageSelectTop._bound = true;
   hifzStageSelectTop.value = hifzStageValue || "1";
 
+  const syncHifzStageDropUi = () => {
+    const selected = String(hifzStageValue || hifzStageSelectTop.value || "1");
+    const meta = getHifzStageMeta(selected);
+    const pctMap = getHifzStageProgressMap();
+    const pct = Number(pctMap[selected] || 0);
+
+    hifzStageSelectTop.value = selected;
+
+    if (hifzStageDropLabelTop) {
+      hifzStageDropLabelTop.textContent = meta.title;
+    }
+
+    if (hifzStageDropTop) {
+      hifzStageDropTop.style.setProperty("--hifz-stage-pct", `${pct}%`);
+    }
+
+    if (hifzStageDropMenuTop) {
+      hifzStageDropMenuTop.querySelectorAll(".hifzStageDropItem[data-stage-value]").forEach((item) => {
+        const on = String(item.getAttribute("data-stage-value") || "") === selected;
+        item.classList.toggle("is-selected", on);
+        item.setAttribute("aria-selected", on ? "true" : "false");
+      });
+    }
+
+    if (hifzStageDropBtnTop) {
+      hifzStageDropBtnTop.setAttribute("aria-expanded", hifzStageDropTop?.classList.contains("is-open") ? "true" : "false");
+    }
+  };
+
+  const closeHifzStageDrop = () => {
+    if (!hifzStageDropTop) return;
+    hifzStageDropTop.classList.remove("is-open");
+    if (hifzStageDropBtnTop) hifzStageDropBtnTop.setAttribute("aria-expanded", "false");
+  };
+
+  const toggleHifzStageDrop = () => {
+    if (!hifzStageDropTop) return;
+    const nextOpen = !hifzStageDropTop.classList.contains("is-open");
+    hifzStageDropTop.classList.toggle("is-open", nextOpen);
+    if (hifzStageDropBtnTop) hifzStageDropBtnTop.setAttribute("aria-expanded", nextOpen ? "true" : "false");
+  };
+
   const applyHifzStage = () => {
     saveHifzStageValue(hifzStageSelectTop.value);
-    hifzStageSelectTop.value = hifzStageValue || "1";
-    renderCurrent(currentRef);
+    syncHifzStageDropUi();
+
+    const inputNow = view.querySelector("#hifzRangeInputTopAyah");
+    syncHifzRangeInputUi(inputNow);
+
+    const stage = String(hifzStageValue || "1");
+    let nextRef = currentRef;
+
+    if (stage === "10") {
+      nextRef = getNextStage10Ref(currentRef);
+    } else if (stage === "9") {
+      nextRef = getNextStage9Ref(currentRef);
+    } else if (stage === "8") {
+      nextRef = getNextStage8Ref(currentRef);
+    } else if (stage === "7") {
+      nextRef = getNextStage7Ref(currentRef);
+    } else if (stage === "6") {
+      nextRef = getNextStage6Ref(currentRef);
+    } else if (stage === "5") {
+      nextRef = getNextStage5Ref(currentRef);
+    } else if (stage === "3" || stage === "4") {
+      const bounds = getHifzRangeBoundsForRef(currentRef);
+      const currentAyahNo = Number(getAyah(currentRef)?.ayah || 0);
+
+      const baseRef =
+        currentAyahNo >= Number(bounds?.fromAyah || 0) &&
+        currentAyahNo <= Number(bounds?.toAyah || 0)
+          ? currentRef
+          : String(bounds?.startRef || currentRef || "");
+
+      nextRef = getNextStage3Ref(baseRef);
+    } else {
+      const bounds = getHifzRangeBoundsForRef(currentRef);
+      const currentAyahNo = Number(getAyah(currentRef)?.ayah || 0);
+
+      nextRef =
+        currentAyahNo >= Number(bounds?.fromAyah || 0) &&
+        currentAyahNo <= Number(bounds?.toAyah || 0)
+          ? currentRef
+          : String(bounds?.startRef || currentRef || "");
+    }
+
+    closeHifzStageDrop();
+    renderCurrent(nextRef);
   };
 
   hifzStageSelectTop.addEventListener("change", applyHifzStage);
+
+  if (hifzStageDropBtnTop && !hifzStageDropBtnTop._bound) {
+    hifzStageDropBtnTop._bound = true;
+    hifzStageDropBtnTop.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleHifzStageDrop();
+    });
+  }
+
+  if (hifzStageDropMenuTop && !hifzStageDropMenuTop._bound) {
+    hifzStageDropMenuTop._bound = true;
+    hifzStageDropMenuTop.addEventListener("click", (e) => {
+      const item = e.target.closest(".hifzStageDropItem[data-stage-value]");
+      if (!item) return;
+
+      const value = String(item.getAttribute("data-stage-value") || "");
+      if (!/^(10|[1-9])$/.test(value)) return;
+
+      hifzStageSelectTop.value = value;
+      hifzStageSelectTop.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  }
+
+  if (!document.__hifzStageDropOutsideBound) {
+    document.__hifzStageDropOutsideBound = true;
+
+    document.addEventListener("click", (e) => {
+      const drop = document.getElementById("hifzStageDropTop");
+      if (!drop) return;
+      if (drop.contains(e.target)) return;
+      drop.classList.remove("is-open");
+      const btn = document.getElementById("hifzStageDropBtnTop");
+      if (btn) btn.setAttribute("aria-expanded", "false");
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      const drop = document.getElementById("hifzStageDropTop");
+      if (!drop) return;
+      drop.classList.remove("is-open");
+      const btn = document.getElementById("hifzStageDropBtnTop");
+      if (btn) btn.setAttribute("aria-expanded", "false");
+    });
+  }
+
+  syncHifzStageDropUi();
 }
 
 const hifzRepeatTargetTop = view.querySelector("#hifzRepeatTargetTop");
@@ -9008,14 +11280,35 @@ if (hifzRepeatTargetTop && !hifzRepeatTargetTop._bound) {
 const hifzRangeInputTopAyah = view.querySelector("#hifzRangeInputTopAyah");
 if (hifzRangeInputTopAyah && !hifzRangeInputTopAyah._bound) {
   hifzRangeInputTopAyah._bound = true;
-  hifzRangeInputTopAyah.value = hifzRangeValue || "5-10";
+  syncHifzRangeInputUi(hifzRangeInputTopAyah);
 
-  const applyAyahRange = () => {
+  const syncAyahRangeDraft = () => {
+    if (isHifzRangeLockedStage(hifzStageValue)) return;
     saveHifzRangeValue(hifzRangeInputTopAyah.value);
-    hifzRangeInputTopAyah.value = hifzRangeValue || "5-10";
-    renderCurrent(currentRef);
   };
 
+  const applyAyahRange = () => {
+    syncAyahRangeDraft();
+    syncHifzRangeInputUi(hifzRangeInputTopAyah);
+
+    if (isHifzRangeLockedStage(hifzStageValue)) {
+      renderCurrent(currentRef);
+      return;
+    }
+
+    const bounds = getHifzRangeBoundsForRef(currentRef);
+    const currentAyahNo = Number(getAyah(currentRef)?.ayah || 0);
+
+    const nextRef =
+      currentAyahNo >= Number(bounds?.fromAyah || 0) &&
+      currentAyahNo <= Number(bounds?.toAyah || 0)
+        ? currentRef
+        : String(bounds?.startRef || currentRef || "");
+
+    renderCurrent(nextRef);
+  };
+
+  hifzRangeInputTopAyah.addEventListener("input", syncAyahRangeDraft);
   hifzRangeInputTopAyah.addEventListener("change", applyAyahRange);
   hifzRangeInputTopAyah.addEventListener("blur", applyAyahRange);
 
@@ -9027,10 +11320,240 @@ if (hifzRangeInputTopAyah && !hifzRangeInputTopAyah._bound) {
   });
 }
 
-if (mount && !mount._hifzRecallBound) {
-  mount._hifzRecallBound = true;
+bindHifzBadDropInView(view, (ref) => {
+  const allowedRefs = new Set(getHifzNavigableRefsForCurrentStage().map(String));
+
+  if (!allowedRefs.has(String(ref))) {
+    if (mount) {
+      mount.innerHTML = buildHifzBadRangeMessageHtml(ref);
+      view.__ayahCacheDirty = true;
+      view.__ayahCardsCache = null;
+    }
+    return;
+  }
+
+  renderCurrent(ref);
+});
+
+if (mount && !mount._hifzUiBound) {
+  mount._hifzUiBound = true;
+
+  const setWriteResultFlash = (ref, value = "") => {
+    const r = String(ref || "");
+    if (!/^\d+:\d+$/.test(r)) return;
+
+    const v = String(value || "").trim().toLowerCase();
+    if (v === "good" || v === "bad") {
+      __hifzWriteResultFlashMap[r] = v;
+      return;
+    }
+
+    delete __hifzWriteResultFlashMap[r];
+  };
+
+  const focusWriteInputByRef = (ref) => {
+    const refStr = String(ref || "");
+    if (!/^\d+:\d+$/.test(refStr)) return null;
+
+    const inputNow = document.querySelector(`[data-hifz-write-input="${refStr}"]`);
+    if (!inputNow) return null;
+
+    try {
+      inputNow.focus({ preventScroll: true });
+    } catch {
+      try { inputNow.focus(); } catch {}
+    }
+
+    try {
+      const len = String(inputNow.value || "").length;
+      inputNow.setSelectionRange(len, len);
+    } catch {}
+
+    return inputNow;
+  };
+
+  const rerenderWithoutJump = (nextRef, { focusWrite = false, forceNow = false } = {}) => {
+    const targetRef = String(nextRef || currentRef || "");
+    const qv = mount.closest(".qView");
+    const prevTop = qv ? qv.scrollTop : 0;
+    const prevLeft = qv ? qv.scrollLeft : 0;
+
+    if (forceNow) {
+      try {
+        cancelScheduledRender(__renderJobId);
+      } catch {}
+
+      __renderJobId = null;
+      __renderPendingRef = null;
+
+      if (/^\d+:\d+$/.test(targetRef)) {
+        currentRef = targetRef;
+        try { setRefToHash(targetRef); } catch {}
+      }
+
+      __renderCurrentNow(targetRef);
+    } else {
+      renderCurrent(targetRef);
+    }
+
+    requestAnimationFrame(() => {
+      const qvNow = document.querySelector(".qView");
+      if (qvNow) {
+        qvNow.scrollTop = prevTop;
+        qvNow.scrollLeft = prevLeft;
+      }
+
+      if (focusWrite) {
+        focusWriteInputByRef(targetRef);
+      }
+    });
+  };
+
+const setWriteInputCooldown = (ref, delayMs = 0) => {
+  const r = String(ref || "");
+  if (!/^\d+:\d+$/.test(r)) return;
+
+  const st = getHifzWriteStateForRef(r);
+  const until = performance.now() + Math.max(0, Number(delayMs) || 0);
+  st.lockUntil = Math.max(Number(st.lockUntil) || 0, until);
+};
+
+const isWriteInputCoolingDown = (ref) => {
+  const r = String(ref || "");
+  if (!/^\d+:\d+$/.test(r)) return false;
+
+  const st = getHifzWriteStateForRef(r);
+  return performance.now() < (Number(st.lockUntil) || 0);
+};
+
+const scheduleWriteFlashClear = (ref, delayMs = 500) => {
+  const r = String(ref || "");
+  if (!/^\d+:\d+$/.test(r)) return;
+
+  const st = getHifzWriteStateForRef(r);
+  const tick = (Number(st.flashTick) || 0) + 1;
+  st.flashTick = tick;
+
+  setTimeout(() => {
+    const cur = __hifzWriteStateMap[r];
+    if (!cur) return;
+    if (Number(cur.flashTick) !== tick) return;
+    if (String(currentRef || "") !== r) return;
+    if (isWriteInputCoolingDown(r)) return;
+
+    clearHifzWriteFlashForRef(r);
+    rerenderWithoutJump(r, { focusWrite: true, forceNow: false });
+  }, delayMs);
+};
+
+const goNextAfterWriteResult = (ref, delayMs = 760) => {
+  const r = String(ref || "");
+  if (!/^\d+:\d+$/.test(r)) return;
+
+  const st = getHifzWriteStateForRef(r);
+  const token = (Number(st.navToken) || 0) + 1;
+  st.navToken = token;
+  st.flashTick = (Number(st.flashTick) || 0) + 1;
+
+  setWriteInputCooldown(r, delayMs);
+
+  setTimeout(() => {
+    const cur = __hifzWriteStateMap[r];
+    if (!cur) return;
+    if (Number(cur.navToken) !== token) return;
+    if (String(currentRef || "") !== r) return;
+
+    const nextRef = String(getNextHifzFocusRef(r) || "");
+
+    setWriteResultFlash(r, "");
+    resetHifzWriteStateForRef(r);
+
+    if (nextRef && nextRef !== r) {
+      setHifzAyahRevealed(nextRef, false);
+      rerenderWithoutJump(nextRef, {
+        focusWrite: ["8", "9", "10"].includes(String(hifzStageValue || "1")),
+        forceNow: true
+      });
+      return;
+    }
+
+    setHifzAyahRevealed(r, false);
+    rerenderWithoutJump(r, {
+      focusWrite: ["8", "9", "10"].includes(String(hifzStageValue || "1")),
+      forceNow: true
+    });
+  }, delayMs);
+};
+
+const handleWriteRawInput = (input, rawValue) => {
+  if (!input) return;
+
+  const ref = String(input.getAttribute("data-hifz-write-input") || "");
+  if (!/^\d+:\d+$/.test(ref)) {
+    input.value = "";
+    return;
+  }
+
+  if (!["8", "9", "10"].includes(String(hifzStageValue || "1"))) {
+    input.value = "";
+    return;
+  }
+
+  input.value = "";
+
+  if (isWriteInputCoolingDown(ref)) {
+    focusWriteInputByRef(ref);
+    return;
+  }
+
+  const safeRaw = String(rawValue || "");
+  const outcome = consumeHifzWriteInput(ref, safeRaw);
+
+  if (!outcome || outcome.status === "noop") {
+    setWriteResultFlash(ref, "");
+    focusWriteInputByRef(ref);
+    return;
+  }
+
+  if (outcome.status === "progress") {
+    setWriteResultFlash(ref, "");
+    rerenderWithoutJump(ref, { focusWrite: true });
+    scheduleWriteFlashClear(ref, 500);
+    return;
+  }
+
+  if (outcome.status === "wrong") {
+    setWriteResultFlash(ref, "");
+    setWriteInputCooldown(ref, 650);
+    rerenderWithoutJump(ref, { focusWrite: true });
+    scheduleWriteFlashClear(ref, 650);
+    return;
+  }
+
+  if (outcome.status === "good") {
+    setHifzResultForRef(ref, hifzStageValue, "good");
+    setWriteResultFlash(ref, "good");
+    rerenderWithoutJump(ref, { focusWrite: false });
+    goNextAfterWriteResult(ref, 760);
+    return;
+  }
+
+  if (outcome.status === "bad") {
+    setHifzResultForRef(ref, hifzStageValue, "bad");
+    setWriteResultFlash(ref, "bad");
+    rerenderWithoutJump(ref, { focusWrite: false });
+    goNextAfterWriteResult(ref, 2500);
+  }
+};
 
   mount.addEventListener("click", (e) => {
+    const writeShell = e.target.closest("[data-hifz-write-shell]");
+    if (writeShell) {
+      const ref = String(writeShell.getAttribute("data-hifz-write-shell") || "");
+      setTimeout(() => focusWriteInputByRef(ref), 0);
+      return;
+    }
+
     const unhideBtn = e.target.closest("[data-hifz-unhide]");
     if (unhideBtn) {
       e.preventDefault();
@@ -9040,7 +11563,7 @@ if (mount && !mount._hifzRecallBound) {
       if (!/^\d+:\d+$/.test(ref)) return;
 
       setHifzAyahRevealed(ref, true);
-      renderCurrent(ref);
+      rerenderWithoutJump(ref);
       return;
     }
 
@@ -9057,6 +11580,8 @@ if (mount && !mount._hifzRecallBound) {
     if (!(mark === "good" || mark === "bad")) return;
 
     setHifzResultForRef(ref, hifzStageValue, mark);
+    setHifzAyahRevealed(ref, false);
+    setWriteResultFlash(ref, "");
 
     const body = btn.closest(".hifzAyahBody");
     if (body) {
@@ -9065,19 +11590,64 @@ if (mount && !mount._hifzRecallBound) {
     }
 
     const goNext = () => {
-      if (String(hifzStageValue) === "1") {
-        const nextRef = getNextStage1Ref(ref);
+      if (isHifzSingleFocusStage(String(hifzStageValue || "1"))) {
+        const nextRef = getNextHifzFocusRef(ref);
         if (nextRef && nextRef !== ref) {
+          setHifzAyahRevealed(nextRef, false);
           renderCurrent(nextRef);
           return;
         }
       }
 
+      setHifzAyahRevealed(ref, false);
       renderCurrent(ref);
     };
 
     setTimeout(goNext, 340);
   });
+
+  mount.addEventListener("input", (e) => {
+    const input = e.target.closest("[data-hifz-write-input]");
+    if (!input) return;
+    handleWriteRawInput(input, String(input.value || ""));
+  });
+
+  mount.addEventListener("compositionend", (e) => {
+    const input = e.target.closest("[data-hifz-write-input]");
+    if (!input) return;
+    handleWriteRawInput(input, String(e.data || input.value || ""));
+  });
+
+mount.addEventListener("keydown", (e) => {
+  const input = e.target.closest("[data-hifz-write-input]");
+  if (!input) return;
+
+  const ref = String(input.getAttribute("data-hifz-write-input") || "");
+
+  if (e.key === "Enter") {
+    e.preventDefault();
+    return;
+  }
+
+  if (isWriteInputCoolingDown(ref) && e.key !== "Tab") {
+    e.preventDefault();
+    e.stopPropagation();
+    return;
+  }
+
+  if (e.key === "Tab" && ["8", "9", "10"].includes(String(hifzStageValue || "1"))) {
+    setTimeout(() => {
+      const nextRef = String(input.getAttribute("data-hifz-write-input") || "");
+      focusWriteInputByRef(nextRef);
+    }, 0);
+  }
+});
+
+if (["8", "9", "10"].includes(String(hifzStageValue || "1"))) {
+  requestAnimationFrame(() => {
+    focusWriteInputByRef(String(currentRef || ""));
+  });
+}
 }
 
 const CHUNK = 40; // normal
@@ -9157,57 +11727,8 @@ html += basmCardHtml(lastSurah);
     const mp3 = ayahMp3Url(a.surah, ayahNo);
 
 html += `
-  <div class="ayahCard ayahMainCard" data-ref="${a.ref}" tabindex="0">
-    <div class="ayahHeaderRow">
-      <div class="ayahRefRow">
-        <button class="ayahBtn ayahPlay playAyah" type="button" data-audio="${mp3}" aria-label="Play Ayah"></button>
-<button class="ayahBtn favContinuePlayBtn" type="button" data-ref="${a.ref}" aria-label="Continue Favorites from ${a.ref}" title="Continue from here">⟲</button>
-        <div class="ayahRef">${a.ref}</div>
-
-        <button class="ayahBtn ayahBm${bmSet.has(a.ref) ? " is-on" : ""}"
-          type="button"
-          data-bm="${a.ref}"
-          aria-label="Bookmark ${a.ref}"
-          title="Bookmark"></button>
-
-<button class="ayahCopy ayahCopyBtn"
-  type="button"
-  data-copy="${a.ref}"
-  aria-label="Copy ${a.ref}"
-  title="Copy">
-  <svg class="copyIcon" viewBox="0 0 24 24" aria-hidden="true">
-    <rect x="9" y="9" width="11" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="2"></rect>
-    <rect x="4" y="4" width="11" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="2"></rect>
-  </svg>
-</button>
-
-<button class="ayahNote ayahNoteBtn"
-  type="button"
-  data-note="${a.ref}"
-  aria-label="Notes ${a.ref}"
-  title="Notes">
-  <svg class="noteIcon" viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M7 3h8a2 2 0 0 1 2 2v14l-6-3-6 3V5a2 2 0 0 1 2-2z"
-      fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-    <path d="M9 7h6M9 10h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-  </svg>
-</button>
-
-<!-- ✅ SurahPlay: Continue Button (wird per JS nur bei aktiver Sura angezeigt) -->
-<button class="ayahContinueBtn"
-  type="button"
-  data-continue="${a.ref}"
-  data-surah="${a.surah}"
-  data-ayah="${a.ayah}"
-  aria-label="Continue ${a.ref}"
-  title="Continue">
-  <span class="ayahContinueIcon" aria-hidden="true">▶</span>
-  <span class="ayahContinueText">continue</span>
-</button>
-      </div>
-
-      <div class="ayahHeaderRight"></div>
-    </div>
+  <div class="ayahCard ayahMainCard hifzAyahCard" data-ref="${a.ref}" tabindex="0">
+    ${buildHifzAyahHeaderHtml(a, mp3, esc)}
 
     ${buildHifzAyahBodyHtml(a, wordsHtml, esc)}
   </div>
@@ -9358,6 +11879,15 @@ if (bmBtn) {
     
     const btn = t?.closest?.("button.ayahPlay");
     if (btn) {
+      const isHifzTestModeHere = !!view.querySelector(".hifzTestTopBar");
+
+      // ✅ Im Testmodus soll Ayah-Play gar nichts machen
+      if (isHifzTestModeHere) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        return;
+      }
+
       const card = btn.closest(".ayahMainCard");
       const r = card?.dataset?.ref || "";
 
@@ -9902,13 +12432,31 @@ function renderMushaf(ref) {
 let favSet = new Set((getActiveFavRefs?.() || []).map(String));
 const isFavActive = (ref) => favSet.has(String(ref || ""));
 
-  const topBarHtml = renderAll ? "" : `
-    <div class="surahTopBar mushafTopBar hifzTrainTopBar">
-      <div class="surahTopFarLeft">
-        <button class="btnCircle playStop suraPlayBtn" type="button" data-surah="${surah}" aria-label="Play selected range">
-          <svg class="icon icon-play" viewBox="0 0 24 24"><path d="M8 5v14l12-7z"></path></svg>
-          <svg class="icon icon-stop" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1"></rect></svg>
-        </button>
+const topBarHtml = renderAll ? "" : `
+  <div class="surahTopBar mushafTopBar hifzTrainTopBar">
+    <div class="surahTopFarLeft">
+      <button class="btnCircle playStop suraPlayBtn" type="button" data-surah="${surah}" aria-label="Play selected range">
+        <svg class="icon icon-play" viewBox="0 0 24 24"><path d="M8 5v14l12-7z"></path></svg>
+        <svg class="icon icon-stop" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1"></rect></svg>
+      </button>
+
+      <div class="hifzTopControls">
+        ${buildHifzStageDropdownHtml(hifzStageValue)}
+
+        <select class="hifzRepeatSelect" id="hifzRepeatTargetTop" aria-label="How often repeated the ayah right to mark it as learned">
+          ${(() => {
+            const values = [
+              ...Array.from({ length: 100 }, (_, i) => i + 1),
+              ...Array.from({ length: 9 }, (_, i) => (i + 2) * 100),
+              ...Array.from({ length: 18 }, (_, i) => 1500 + (i * 500))
+            ];
+
+            return values.map((n) => {
+              const sel = n === loadHifzRepeatTarget() ? ' selected' : '';
+              return `<option value="${n}"${sel}>${n}x right</option>`;
+            }).join("");
+          })()}
+        </select>
 
         <input
           class="hifzRangeInput"
@@ -9919,21 +12467,24 @@ const isFavActive = (ref) => favSet.has(String(ref || ""));
           placeholder="5-10"
           aria-label="Ayah range to train">
       </div>
+    </div>
 
-      <div class="surahTopLeft">
-        <div class="surahTitle surahTopTitle">
-          <span class="sEn">Train</span>
-        </div>
-      </div>
-
-      <div class="surahTopRight">
-        <button class="surahModeBtn" type="button" data-action="toggleView" title="Switch to test mode">
-          <span class="modeText">${modeText}</span>
-          <span class="modeArrow">→</span>
-        </button>
+    <div class="surahTopLeft">
+      <div class="surahTitle surahTopTitle">
+        <span class="sEn">Train</span>
       </div>
     </div>
-  `;
+
+    <div class="surahTopRight">
+      ${buildHifzBadRefsTopbarHtml()}
+
+      <button class="surahModeBtn" type="button" data-action="toggleView" title="Switch to test mode">
+        <span class="modeText">${modeText}</span>
+        <span class="modeArrow">→</span>
+      </button>
+    </div>
+  </div>
+`;
 
 const centerTitleHtml = `
   <div class="mCenter">
@@ -9947,20 +12498,328 @@ const centerTitleHtml = `
    <div class="mBody">
      <div class="mFlow" dir="rtl" lang="ar"></div>
    </div>
+   <div class="hifzSurahSummaryMount"></div>
  `;
 
 const flow = view.querySelector(".mFlow");
+const surahSummaryMount = view.querySelector(".hifzSurahSummaryMount");
+
+const escSummary = (s) =>
+  String(s ?? "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[c]));
+
+function buildHifzSurahSummaryHtmlTrain(){
+  let cells = "";
+
+  const getHifzSurahProgressPctTrain = (surahNo) => {
+    try{
+      const stage = String(hifzStageValue || "1");
+      const refs2 = getSuraRefs(Number(surahNo) || 0) || [];
+      if (!refs2.length) return 0;
+
+      let sum = 0;
+      let count = 0;
+
+      for (const ref2 of refs2){
+        const ratio2 = Number(getHifzProgressRatioForRef(ref2, stage) || 0);
+        sum += Math.max(0, Math.min(1, ratio2));
+        count++;
+      }
+
+      if (!count) return 0;
+      return Math.max(0, Math.min(100, Math.round((sum / count) * 100)));
+    }catch{
+      return 0;
+    }
+  };
+
+  for (let s = 1; s <= 114; s++){
+    const pct = getHifzSurahProgressPctTrain(s);
+    const ratio = pct / 100;
+    const smx = getSuraMeta(s) || {};
+    const surahAr = escSummary(smx?.nameAr ?? "");
+    const surahTr = escSummary(smx?.nameTranslit ?? `Surah ${s}`);
+
+    cells += `
+      <div class="hifzSurahSummaryCell${pct > 0 ? " is-progress" : ""}${pct >= 100 ? " is-mastered" : ""}"
+           style="--surah-progress:${ratio};"
+           data-surah="${s}"
+           data-pct="${pct}"
+           data-tip-ref="Surah ${s}"
+           data-tip-ar="${surahAr}"
+           data-tip-tr="${surahTr} • ${pct}%">
+        <div class="hifzSurahSummaryCellInner" aria-hidden="true">
+          <span class="hifzSurahSummaryNo">${s}</span>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="ayahCard hifzSurahSummaryCard">
+      <div class="hifzSurahSummaryHeader">
+        <div class="hifzSurahSummaryTitle">Surah Progress</div>
+      </div>
+      <div class="hifzSurahSummaryGrid">
+        ${cells}
+      </div>
+    </div>
+  `;
+}
+
+if (surahSummaryMount) {
+  surahSummaryMount.innerHTML = buildHifzSurahSummaryHtmlTrain();
+
+  let _lastSurahSummaryTipKey = "";
+
+  const _renderSurahSummaryTip = (cell, clientX, clientY) => {
+    if (!cell) {
+      _lastSurahSummaryTipKey = "";
+      _hideSuraTip();
+      return;
+    }
+
+    if (typeof tooltipsAllowed === "function" && !tooltipsAllowed()) {
+      _lastSurahSummaryTipKey = "";
+      _hideSuraTip();
+      return;
+    }
+
+    const key = `${cell.dataset.surah || ""}|${cell.dataset.pct || ""}`;
+
+    if (_lastSurahSummaryTipKey !== key) {
+      _lastSurahSummaryTipKey = key;
+
+      suraTip.innerHTML = `
+        <div class="tipRef">${escTip(cell.dataset.tipRef || "")}</div>
+        <div class="tipAr" dir="rtl" lang="ar">${cell.dataset.tipAr || ""}</div>
+        <div class="tipTr">${escTip(cell.dataset.tipTr || "")}</div>
+      `;
+    }
+
+    _placeTip(suraTip, clientX, clientY);
+  };
+
+  surahSummaryMount.addEventListener("mouseenter", (e) => {
+    const cell = e.target.closest?.(".hifzSurahSummaryCell[data-surah]");
+    if (!cell) return;
+    _renderSurahSummaryTip(cell, e.clientX, e.clientY);
+  }, true);
+
+  surahSummaryMount.addEventListener("mousemove", (e) => {
+    const cell = e.target.closest?.(".hifzSurahSummaryCell[data-surah]");
+    if (!cell) {
+      _lastSurahSummaryTipKey = "";
+      _hideSuraTip();
+      return;
+    }
+
+    _renderSurahSummaryTip(cell, e.clientX, e.clientY);
+  }, { passive: true });
+
+  surahSummaryMount.addEventListener("mouseleave", () => {
+    _lastSurahSummaryTipKey = "";
+    _hideSuraTip();
+  });
+}
+
+const hifzStageSelectTop = view.querySelector("#hifzStageSelectTop");
+const hifzStageDropTop = view.querySelector("#hifzStageDropTop");
+const hifzStageDropBtnTop = view.querySelector("#hifzStageDropBtnTop");
+const hifzStageDropMenuTop = view.querySelector("#hifzStageDropMenuTop");
+const hifzStageDropLabelTop = view.querySelector("#hifzStageDropLabelTop");
+
+if (hifzStageSelectTop && !hifzStageSelectTop._bound) {
+  hifzStageSelectTop._bound = true;
+  hifzStageSelectTop.value = hifzStageValue || "1";
+
+  const syncHifzStageDropUi = () => {
+    const selected = String(hifzStageValue || hifzStageSelectTop.value || "1");
+    const meta = getHifzStageMeta(selected);
+    const pctMap = getHifzStageProgressMap();
+    const pct = Number(pctMap[selected] || 0);
+
+    hifzStageSelectTop.value = selected;
+
+    if (hifzStageDropLabelTop) {
+      hifzStageDropLabelTop.textContent = meta.title;
+    }
+
+    if (hifzStageDropTop) {
+      hifzStageDropTop.style.setProperty("--hifz-stage-pct", `${pct}%`);
+    }
+
+    if (hifzStageDropMenuTop) {
+      hifzStageDropMenuTop.querySelectorAll(".hifzStageDropItem[data-stage-value]").forEach((item) => {
+        const on = String(item.getAttribute("data-stage-value") || "") === selected;
+        item.classList.toggle("is-selected", on);
+        item.setAttribute("aria-selected", on ? "true" : "false");
+      });
+    }
+
+    if (hifzStageDropBtnTop) {
+      hifzStageDropBtnTop.setAttribute("aria-expanded", hifzStageDropTop?.classList.contains("is-open") ? "true" : "false");
+    }
+  };
+
+  const closeHifzStageDrop = () => {
+    if (!hifzStageDropTop) return;
+    hifzStageDropTop.classList.remove("is-open");
+    if (hifzStageDropBtnTop) hifzStageDropBtnTop.setAttribute("aria-expanded", "false");
+  };
+
+  const toggleHifzStageDrop = () => {
+    if (!hifzStageDropTop) return;
+    const nextOpen = !hifzStageDropTop.classList.contains("is-open");
+    hifzStageDropTop.classList.toggle("is-open", nextOpen);
+    if (hifzStageDropBtnTop) hifzStageDropBtnTop.setAttribute("aria-expanded", nextOpen ? "true" : "false");
+  };
+
+  const applyHifzStage = () => {
+    saveHifzStageValue(hifzStageSelectTop.value);
+    syncHifzStageDropUi();
+
+    const inputNow = view.querySelector("#hifzRangeInputTop");
+    syncHifzRangeInputUi(inputNow);
+
+    const stage = String(hifzStageValue || "1");
+    let nextRef = currentRef;
+
+    if (stage === "10") {
+      nextRef = getNextStage10Ref(currentRef);
+    } else if (stage === "9") {
+      nextRef = getNextStage9Ref(currentRef);
+    } else if (stage === "8") {
+      nextRef = getNextStage8Ref(currentRef);
+    } else if (stage === "7") {
+      nextRef = getNextStage7Ref(currentRef);
+    } else if (stage === "6") {
+      nextRef = getNextStage6Ref(currentRef);
+    } else if (stage === "5") {
+      nextRef = getNextStage5Ref(currentRef);
+    } else if (stage === "3" || stage === "4") {
+      const bounds = getHifzRangeBoundsForRef(currentRef);
+      const currentAyahNo = Number(getAyah(currentRef)?.ayah || 0);
+
+      const baseRef =
+        currentAyahNo >= Number(bounds?.fromAyah || 0) &&
+        currentAyahNo <= Number(bounds?.toAyah || 0)
+          ? currentRef
+          : String(bounds?.startRef || currentRef || "");
+
+      nextRef = getNextStage3Ref(baseRef);
+    } else {
+      const bounds = getHifzRangeBoundsForRef(currentRef);
+      const currentAyahNo = Number(getAyah(currentRef)?.ayah || 0);
+
+      nextRef =
+        currentAyahNo >= Number(bounds?.fromAyah || 0) &&
+        currentAyahNo <= Number(bounds?.toAyah || 0)
+          ? currentRef
+          : String(bounds?.startRef || currentRef || "");
+    }
+
+    closeHifzStageDrop();
+    renderCurrent(nextRef);
+  };
+
+  hifzStageSelectTop.addEventListener("change", applyHifzStage);
+
+  if (hifzStageDropBtnTop && !hifzStageDropBtnTop._bound) {
+    hifzStageDropBtnTop._bound = true;
+    hifzStageDropBtnTop.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleHifzStageDrop();
+    });
+  }
+
+  if (hifzStageDropMenuTop && !hifzStageDropMenuTop._bound) {
+    hifzStageDropMenuTop._bound = true;
+    hifzStageDropMenuTop.addEventListener("click", (e) => {
+      const item = e.target.closest(".hifzStageDropItem[data-stage-value]");
+      if (!item) return;
+
+      const value = String(item.getAttribute("data-stage-value") || "");
+      if (!/^(10|[1-9])$/.test(value)) return;
+
+      hifzStageSelectTop.value = value;
+      hifzStageSelectTop.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  }
+
+  if (!document.__hifzStageDropOutsideBound) {
+    document.__hifzStageDropOutsideBound = true;
+
+    document.addEventListener("click", (e) => {
+      const drop = document.getElementById("hifzStageDropTop");
+      if (!drop) return;
+      if (drop.contains(e.target)) return;
+      drop.classList.remove("is-open");
+      const btn = document.getElementById("hifzStageDropBtnTop");
+      if (btn) btn.setAttribute("aria-expanded", "false");
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      const drop = document.getElementById("hifzStageDropTop");
+      if (!drop) return;
+      drop.classList.remove("is-open");
+      const btn = document.getElementById("hifzStageDropBtnTop");
+      if (btn) btn.setAttribute("aria-expanded", "false");
+    });
+  }
+
+  syncHifzStageDropUi();
+}
+
+const hifzRepeatTargetTop = view.querySelector("#hifzRepeatTargetTop");
+if (hifzRepeatTargetTop && !hifzRepeatTargetTop._bound) {
+  hifzRepeatTargetTop._bound = true;
+  hifzRepeatTargetTop.value = String(loadHifzRepeatTarget());
+
+  const applyRepeatTarget = () => {
+    saveHifzRepeatTarget(hifzRepeatTargetTop.value);
+    hifzRepeatTargetTop.value = String(loadHifzRepeatTarget());
+    renderCurrent(currentRef);
+  };
+
+  hifzRepeatTargetTop.addEventListener("change", applyRepeatTarget);
+}
 
 const hifzRangeInputTop = view.querySelector("#hifzRangeInputTop");
 if (hifzRangeInputTop && !hifzRangeInputTop._bound) {
   hifzRangeInputTop._bound = true;
+  syncHifzRangeInputUi(hifzRangeInputTop);
 
-  const applyTrainRange = () => {
+  const syncTrainRangeDraft = () => {
+    if (isHifzRangeLockedStage(hifzStageValue)) return;
     saveHifzRangeValue(hifzRangeInputTop.value);
-    hifzRangeInputTop.value = hifzRangeValue;
-    renderCurrent(currentRef);
   };
 
+  const applyTrainRange = () => {
+    syncTrainRangeDraft();
+    syncHifzRangeInputUi(hifzRangeInputTop);
+
+    if (isHifzRangeLockedStage(hifzStageValue)) {
+      renderCurrent(currentRef);
+      return;
+    }
+
+    const bounds = getHifzRangeBoundsForRef(currentRef);
+    const currentAyahNo = Number(getAyah(currentRef)?.ayah || 0);
+
+    const nextRef =
+      currentAyahNo >= Number(bounds?.fromAyah || 0) &&
+      currentAyahNo <= Number(bounds?.toAyah || 0)
+        ? currentRef
+        : String(bounds?.startRef || currentRef || "");
+
+    renderCurrent(nextRef);
+  };
+
+  hifzRangeInputTop.addEventListener("input", syncTrainRangeDraft);
   hifzRangeInputTop.addEventListener("change", applyTrainRange);
   hifzRangeInputTop.addEventListener("blur", applyTrainRange);
 
@@ -9971,6 +12830,22 @@ if (hifzRangeInputTop && !hifzRangeInputTop._bound) {
     }
   });
 }
+
+bindHifzBadDropInView(view, (ref) => {
+  const allowedRefs = new Set(getHifzNavigableRefsForCurrentStage().map(String));
+
+  if (!allowedRefs.has(String(ref))) {
+    if (flow) {
+      flow.innerHTML = buildHifzBadRangeMessageHtml(ref);
+      view.__mushafCacheDirty = true;
+      view.__mushafBtnsCache = null;
+      view.__mushafPosCache = null;
+    }
+    return;
+  }
+
+  renderCurrent(ref);
+});
 
 const CHUNK = 60;
 const FAST_CHUNK = 250; // ✅ viel kleiner (Performance!)
@@ -10064,15 +12939,29 @@ function renderChunk() {
       words: a.words
     });
 
-    html += `
-      <span class="mChunk" data-ref="${a.ref}">
-        <span class="mText" dir="rtl" lang="ar">${wordsHtml}</span>
-        <button class="mNo${((typeof favSet !== "undefined") && favSet && favSet.has(String(a.ref))) ? " is-fav" : ""}${getNoteForRef(a.ref).trim() ? " is-note" : ""}"
-  type="button"
-  data-ref="${a.ref}"
-  aria-label="Play ${a.ref}">${no}</button>
-      </span>
-    `;
+const hifzStageNow = String(hifzStageValue || "1");
+const hifzResult = String(getHifzResultForRef(a.ref, hifzStageNow) || "");
+const hifzRatio = Number(getHifzProgressRatioForRef(a.ref, hifzStageNow) || 0);
+const hifzRing = Math.max(0, Math.min(1, hifzRatio));
+const hifzNoClass =
+  hifzResult === "bad"
+    ? " is-hifz-bad"
+    : (
+        hifzRatio >= 1
+          ? " is-hifz-mastered"
+          : (hifzRatio > 0 ? " is-hifz-progress" : "")
+      );
+
+html += `
+  <span class="mChunk" data-ref="${a.ref}">
+    <span class="mText" dir="rtl" lang="ar">${wordsHtml}</span>
+    <button class="mNo${hifzNoClass}${((typeof favSet !== "undefined") && favSet && favSet.has(String(a.ref))) ? " is-fav" : ""}${getNoteForRef(a.ref).trim() ? " is-note" : ""}"
+type="button"
+data-ref="${a.ref}"
+style="--hifz-ring:${hifzRing};"
+aria-label="Play ${a.ref}">${no}</button>
+  </span>
+`;
   }
 
   flow.insertAdjacentHTML("beforeend", html);
