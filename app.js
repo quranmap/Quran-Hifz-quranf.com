@@ -8453,546 +8453,6 @@ function installHifzRecallHotkeys() {
   );
 }
 
-function installHifzRecallHotkeys() {
-  if (window.__quranHifzRecallHotkeysInstalled) return;
-  window.__quranHifzRecallHotkeysInstalled = true;
-
-  document.addEventListener(
-    "keydown",
-    (e) => {
-      const key = String(e.key || "");
-      const code = String(e.code || "");
-
-      const isSpace = code === "Space" || key === " ";
-      const isBad = key === "1" || code === "Digit1" || code === "Numpad1";
-      const isGood = key === "3" || code === "Digit3" || code === "Numpad3";
-
-      if (!isSpace && !isBad && !isGood) return;
-      if (e.repeat) return;
-
-      const ae = document.activeElement;
-      const typing =
-        ae &&
-        (ae.tagName === "INPUT" ||
-          ae.tagName === "TEXTAREA" ||
-          ae.isContentEditable);
-      if (typing) return;
-
-      if (viewMode !== "ayah") return;
-
-      const qv = document.querySelector(".qView");
-      if (!qv || qv.dataset.mode === "favorites" || qv.style.display === "none") return;
-
-      const ref = String(currentRef || "");
-      if (!/^\d+:\d+$/.test(ref)) return;
-
-      const safeRef = CSS.escape(ref);
-      const unhideBtn = qv.querySelector(`[data-hifz-unhide="${safeRef}"]`);
-      const badBtn = qv.querySelector(`[data-hifz-mark="bad"][data-hifz-ref="${safeRef}"]`);
-      const goodBtn = qv.querySelector(`[data-hifz-mark="good"][data-hifz-ref="${safeRef}"]`);
-
-      const targetBtn = isSpace ? unhideBtn : (isBad ? badBtn : goodBtn);
-      if (!targetBtn) return;
-
-      e.preventDefault();
-      e.stopPropagation();
-
-      if (typeof e.stopImmediatePropagation === "function") {
-        e.stopImmediatePropagation();
-      }
-
-      targetBtn.click();
-    },
-    { capture: true }
-  );
-}
-
-function installHifzRecallHotkeys() {
-  if (window.__quranHifzRecallHotkeysInstalled) return;
-  window.__quranHifzRecallHotkeysInstalled = true;
-
-  document.addEventListener(
-    "keydown",
-    (e) => {
-      const key = String(e.key || "");
-      const code = String(e.code || "");
-
-      const isSpace = code === "Space" || key === " ";
-      const isBad = key === "1" || code === "Digit1" || code === "Numpad1";
-      const isGood = key === "3" || code === "Digit3" || code === "Numpad3";
-
-      if (!isSpace && !isBad && !isGood) return;
-      if (e.repeat) return;
-
-      const ae = document.activeElement;
-      const typing =
-        ae &&
-        (ae.tagName === "INPUT" ||
-          ae.tagName === "TEXTAREA" ||
-          ae.isContentEditable);
-      if (typing) return;
-
-      if (viewMode !== "ayah") return;
-
-      const qv = document.querySelector(".qView");
-      if (!qv || qv.dataset.mode === "favorites" || qv.style.display === "none") return;
-
-      const ref = String(currentRef || "");
-      if (!/^\d+:\d+$/.test(ref)) return;
-
-      const safeRef = CSS.escape(ref);
-      const unhideBtn = qv.querySelector(`[data-hifz-unhide="${safeRef}"]`);
-      const badBtn = qv.querySelector(`[data-hifz-mark="bad"][data-hifz-ref="${safeRef}"]`);
-      const goodBtn = qv.querySelector(`[data-hifz-mark="good"][data-hifz-ref="${safeRef}"]`);
-
-      const targetBtn = isSpace ? unhideBtn : (isBad ? badBtn : goodBtn);
-      if (!targetBtn) return;
-
-      e.preventDefault();
-      e.stopPropagation();
-
-      if (typeof e.stopImmediatePropagation === "function") {
-        e.stopImmediatePropagation();
-      }
-
-      targetBtn.click();
-    },
-    { capture: true }
-  );
-}
-
-function installHifzRecallHotkeys() {
-  if (window.__quranHifzRecallHotkeysInstalled) return;
-  window.__quranHifzRecallHotkeysInstalled = true;
-
-  document.addEventListener(
-    "keydown",
-    (e) => {
-      const key = String(e.key || "");
-      const code = String(e.code || "");
-
-      const isSpace = code === "Space" || key === " ";
-      const isBad = key === "1" || code === "Digit1" || code === "Numpad1";
-      const isGood = key === "3" || code === "Digit3" || code === "Numpad3";
-
-      if (!isSpace && !isBad && !isGood) return;
-      if (e.repeat) return;
-
-      const ae = document.activeElement;
-      const typing =
-        ae &&
-        (ae.tagName === "INPUT" ||
-          ae.tagName === "TEXTAREA" ||
-          ae.isContentEditable);
-      if (typing) return;
-
-      if (viewMode !== "ayah") return;
-
-      const qv = document.querySelector(".qView");
-      if (!qv || qv.dataset.mode === "favorites" || qv.style.display === "none") return;
-
-      const ref = String(currentRef || "");
-      if (!/^\d+:\d+$/.test(ref)) return;
-
-      const safeRef = CSS.escape(ref);
-      const unhideBtn = qv.querySelector(`[data-hifz-unhide="${safeRef}"]`);
-      const badBtn = qv.querySelector(`[data-hifz-mark="bad"][data-hifz-ref="${safeRef}"]`);
-      const goodBtn = qv.querySelector(`[data-hifz-mark="good"][data-hifz-ref="${safeRef}"]`);
-
-      const targetBtn = isSpace ? unhideBtn : (isBad ? badBtn : goodBtn);
-      if (!targetBtn) return;
-
-      e.preventDefault();
-      e.stopPropagation();
-
-      if (typeof e.stopImmediatePropagation === "function") {
-        e.stopImmediatePropagation();
-      }
-
-      targetBtn.click();
-    },
-    { capture: true }
-  );
-}
-
-function installHifzRecallHotkeys() {
-  if (window.__quranHifzRecallHotkeysInstalled) return;
-  window.__quranHifzRecallHotkeysInstalled = true;
-
-  document.addEventListener(
-    "keydown",
-    (e) => {
-      const key = String(e.key || "");
-      const code = String(e.code || "");
-
-      const isSpace = code === "Space" || key === " ";
-      const isBad = key === "1" || code === "Digit1" || code === "Numpad1";
-      const isGood = key === "3" || code === "Digit3" || code === "Numpad3";
-
-      if (!isSpace && !isBad && !isGood) return;
-      if (e.repeat) return;
-
-      const ae = document.activeElement;
-      const typing =
-        ae &&
-        (ae.tagName === "INPUT" ||
-          ae.tagName === "TEXTAREA" ||
-          ae.isContentEditable);
-      if (typing) return;
-
-      if (viewMode !== "ayah") return;
-
-      const qv = document.querySelector(".qView");
-      if (!qv || qv.dataset.mode === "favorites" || qv.style.display === "none") return;
-
-      const ref = String(currentRef || "");
-      if (!/^\d+:\d+$/.test(ref)) return;
-
-      const safeRef = CSS.escape(ref);
-      const unhideBtn = qv.querySelector(`[data-hifz-unhide="${safeRef}"]`);
-      const badBtn = qv.querySelector(`[data-hifz-mark="bad"][data-hifz-ref="${safeRef}"]`);
-      const goodBtn = qv.querySelector(`[data-hifz-mark="good"][data-hifz-ref="${safeRef}"]`);
-
-      const targetBtn = isSpace ? unhideBtn : (isBad ? badBtn : goodBtn);
-      if (!targetBtn) return;
-
-      e.preventDefault();
-      e.stopPropagation();
-
-      if (typeof e.stopImmediatePropagation === "function") {
-        e.stopImmediatePropagation();
-      }
-
-      targetBtn.click();
-    },
-    { capture: true }
-  );
-}
-
-function installHifzRecallHotkeys() {
-  if (window.__quranHifzRecallHotkeysInstalled) return;
-  window.__quranHifzRecallHotkeysInstalled = true;
-
-  document.addEventListener(
-    "keydown",
-    (e) => {
-      const key = String(e.key || "");
-      const code = String(e.code || "");
-
-      const isSpace = code === "Space" || key === " ";
-      const isBad = key === "1" || code === "Digit1" || code === "Numpad1";
-      const isGood = key === "3" || code === "Digit3" || code === "Numpad3";
-
-      if (!isSpace && !isBad && !isGood) return;
-      if (e.repeat) return;
-
-      const ae = document.activeElement;
-      const typing =
-        ae &&
-        (ae.tagName === "INPUT" ||
-          ae.tagName === "TEXTAREA" ||
-          ae.isContentEditable);
-      if (typing) return;
-
-      if (viewMode !== "ayah") return;
-
-      const qv = document.querySelector(".qView");
-      if (!qv || qv.dataset.mode === "favorites" || qv.style.display === "none") return;
-
-      const ref = String(currentRef || "");
-      if (!/^\d+:\d+$/.test(ref)) return;
-
-      const safeRef = CSS.escape(ref);
-      const unhideBtn = qv.querySelector(`[data-hifz-unhide="${safeRef}"]`);
-      const badBtn = qv.querySelector(`[data-hifz-mark="bad"][data-hifz-ref="${safeRef}"]`);
-      const goodBtn = qv.querySelector(`[data-hifz-mark="good"][data-hifz-ref="${safeRef}"]`);
-
-      const targetBtn = isSpace ? unhideBtn : (isBad ? badBtn : goodBtn);
-      if (!targetBtn) return;
-
-      e.preventDefault();
-      e.stopPropagation();
-
-      if (typeof e.stopImmediatePropagation === "function") {
-        e.stopImmediatePropagation();
-      }
-
-      targetBtn.click();
-    },
-    { capture: true }
-  );
-}
-
-function installHifzRecallHotkeys() {
-  if (window.__quranHifzRecallHotkeysInstalled) return;
-  window.__quranHifzRecallHotkeysInstalled = true;
-
-  document.addEventListener(
-    "keydown",
-    (e) => {
-      const key = String(e.key || "");
-      const code = String(e.code || "");
-
-      const isSpace = code === "Space" || key === " ";
-      const isBad = key === "1" || code === "Digit1" || code === "Numpad1";
-      const isGood = key === "3" || code === "Digit3" || code === "Numpad3";
-
-      if (!isSpace && !isBad && !isGood) return;
-      if (e.repeat) return;
-
-      const ae = document.activeElement;
-      const typing =
-        ae &&
-        (ae.tagName === "INPUT" ||
-          ae.tagName === "TEXTAREA" ||
-          ae.isContentEditable);
-      if (typing) return;
-
-      if (viewMode !== "ayah") return;
-
-      const qv = document.querySelector(".qView");
-      if (!qv || qv.dataset.mode === "favorites" || qv.style.display === "none") return;
-
-      const ref = String(currentRef || "");
-      if (!/^\d+:\d+$/.test(ref)) return;
-
-      const safeRef = CSS.escape(ref);
-      const unhideBtn = qv.querySelector(`[data-hifz-unhide="${safeRef}"]`);
-      const badBtn = qv.querySelector(`[data-hifz-mark="bad"][data-hifz-ref="${safeRef}"]`);
-      const goodBtn = qv.querySelector(`[data-hifz-mark="good"][data-hifz-ref="${safeRef}"]`);
-
-      const targetBtn = isSpace ? unhideBtn : (isBad ? badBtn : goodBtn);
-      if (!targetBtn) return;
-
-      e.preventDefault();
-      e.stopPropagation();
-
-      if (typeof e.stopImmediatePropagation === "function") {
-        e.stopImmediatePropagation();
-      }
-
-      targetBtn.click();
-    },
-    { capture: true }
-  );
-}
-
-function installHifzRecallHotkeys() {
-  if (window.__quranHifzRecallHotkeysInstalled) return;
-  window.__quranHifzRecallHotkeysInstalled = true;
-
-  document.addEventListener(
-    "keydown",
-    (e) => {
-      const key = String(e.key || "");
-      const code = String(e.code || "");
-
-      const isSpace = code === "Space" || key === " ";
-      const isBad = key === "1" || code === "Digit1" || code === "Numpad1";
-      const isGood = key === "3" || code === "Digit3" || code === "Numpad3";
-
-      if (!isSpace && !isBad && !isGood) return;
-      if (e.repeat) return;
-
-      const ae = document.activeElement;
-      const typing =
-        ae &&
-        (ae.tagName === "INPUT" ||
-          ae.tagName === "TEXTAREA" ||
-          ae.isContentEditable);
-      if (typing) return;
-
-      if (viewMode !== "ayah") return;
-
-      const qv = document.querySelector(".qView");
-      if (!qv || qv.dataset.mode === "favorites" || qv.style.display === "none") return;
-
-      const ref = String(currentRef || "");
-      if (!/^\d+:\d+$/.test(ref)) return;
-
-      const safeRef = CSS.escape(ref);
-      const unhideBtn = qv.querySelector(`[data-hifz-unhide="${safeRef}"]`);
-      const badBtn = qv.querySelector(`[data-hifz-mark="bad"][data-hifz-ref="${safeRef}"]`);
-      const goodBtn = qv.querySelector(`[data-hifz-mark="good"][data-hifz-ref="${safeRef}"]`);
-
-      const targetBtn = isSpace ? unhideBtn : (isBad ? badBtn : goodBtn);
-      if (!targetBtn) return;
-
-      e.preventDefault();
-      e.stopPropagation();
-
-      if (typeof e.stopImmediatePropagation === "function") {
-        e.stopImmediatePropagation();
-      }
-
-      targetBtn.click();
-    },
-    { capture: true }
-  );
-}
-
-function installHifzRecallHotkeys() {
-  if (window.__quranHifzRecallHotkeysInstalled) return;
-  window.__quranHifzRecallHotkeysInstalled = true;
-
-  document.addEventListener(
-    "keydown",
-    (e) => {
-      const key = String(e.key || "");
-      const code = String(e.code || "");
-
-      const isSpace = code === "Space" || key === " ";
-      const isBad = key === "1" || code === "Digit1" || code === "Numpad1";
-      const isGood = key === "3" || code === "Digit3" || code === "Numpad3";
-
-      if (!isSpace && !isBad && !isGood) return;
-      if (e.repeat) return;
-
-      const ae = document.activeElement;
-      const typing =
-        ae &&
-        (ae.tagName === "INPUT" ||
-          ae.tagName === "TEXTAREA" ||
-          ae.isContentEditable);
-      if (typing) return;
-
-      if (viewMode !== "ayah") return;
-
-      const qv = document.querySelector(".qView");
-      if (!qv || qv.dataset.mode === "favorites" || qv.style.display === "none") return;
-
-      const ref = String(currentRef || "");
-      if (!/^\d+:\d+$/.test(ref)) return;
-
-      const safeRef = CSS.escape(ref);
-      const unhideBtn = qv.querySelector(`[data-hifz-unhide="${safeRef}"]`);
-      const badBtn = qv.querySelector(`[data-hifz-mark="bad"][data-hifz-ref="${safeRef}"]`);
-      const goodBtn = qv.querySelector(`[data-hifz-mark="good"][data-hifz-ref="${safeRef}"]`);
-
-      const targetBtn = isSpace ? unhideBtn : (isBad ? badBtn : goodBtn);
-      if (!targetBtn) return;
-
-      e.preventDefault();
-      e.stopPropagation();
-
-      if (typeof e.stopImmediatePropagation === "function") {
-        e.stopImmediatePropagation();
-      }
-
-      targetBtn.click();
-    },
-    { capture: true }
-  );
-}
-
-function installHifzRecallHotkeys() {
-  if (window.__quranHifzRecallHotkeysInstalled) return;
-  window.__quranHifzRecallHotkeysInstalled = true;
-
-  document.addEventListener(
-    "keydown",
-    (e) => {
-      const key = String(e.key || "");
-      const code = String(e.code || "");
-
-      const isSpace = code === "Space" || key === " ";
-      const isBad = key === "1" || code === "Digit1" || code === "Numpad1";
-      const isGood = key === "3" || code === "Digit3" || code === "Numpad3";
-
-      if (!isSpace && !isBad && !isGood) return;
-      if (e.repeat) return;
-
-      const ae = document.activeElement;
-      const typing =
-        ae &&
-        (ae.tagName === "INPUT" ||
-          ae.tagName === "TEXTAREA" ||
-          ae.isContentEditable);
-      if (typing) return;
-
-      if (viewMode !== "ayah") return;
-
-      const qv = document.querySelector(".qView");
-      if (!qv || qv.dataset.mode === "favorites" || qv.style.display === "none") return;
-
-      const ref = String(currentRef || "");
-      if (!/^\d+:\d+$/.test(ref)) return;
-
-      const safeRef = CSS.escape(ref);
-      const unhideBtn = qv.querySelector(`[data-hifz-unhide="${safeRef}"]`);
-      const badBtn = qv.querySelector(`[data-hifz-mark="bad"][data-hifz-ref="${safeRef}"]`);
-      const goodBtn = qv.querySelector(`[data-hifz-mark="good"][data-hifz-ref="${safeRef}"]`);
-
-      const targetBtn = isSpace ? unhideBtn : (isBad ? badBtn : goodBtn);
-      if (!targetBtn) return;
-
-      e.preventDefault();
-      e.stopPropagation();
-
-      if (typeof e.stopImmediatePropagation === "function") {
-        e.stopImmediatePropagation();
-      }
-
-      targetBtn.click();
-    },
-    { capture: true }
-  );
-}
-
-function installHifzRecallHotkeys() {
-  if (window.__quranHifzRecallHotkeysInstalled) return;
-  window.__quranHifzRecallHotkeysInstalled = true;
-
-  document.addEventListener(
-    "keydown",
-    (e) => {
-      const key = String(e.key || "");
-      const code = String(e.code || "");
-
-      const isSpace = code === "Space" || key === " ";
-      const isBad = key === "1" || code === "Digit1" || code === "Numpad1";
-      const isGood = key === "3" || code === "Digit3" || code === "Numpad3";
-
-      if (!isSpace && !isBad && !isGood) return;
-      if (e.repeat) return;
-
-      const ae = document.activeElement;
-      const typing =
-        ae &&
-        (ae.tagName === "INPUT" ||
-          ae.tagName === "TEXTAREA" ||
-          ae.isContentEditable);
-      if (typing) return;
-
-      if (viewMode !== "ayah") return;
-
-      const qv = document.querySelector(".qView");
-      if (!qv || qv.dataset.mode === "favorites" || qv.style.display === "none") return;
-
-      const ref = String(currentRef || "");
-      if (!/^\d+:\d+$/.test(ref)) return;
-
-      const safeRef = CSS.escape(ref);
-      const unhideBtn = qv.querySelector(`[data-hifz-unhide="${safeRef}"]`);
-      const badBtn = qv.querySelector(`[data-hifz-mark="bad"][data-hifz-ref="${safeRef}"]`);
-      const goodBtn = qv.querySelector(`[data-hifz-mark="good"][data-hifz-ref="${safeRef}"]`);
-
-      const targetBtn = isSpace ? unhideBtn : (isBad ? badBtn : goodBtn);
-      if (!targetBtn) return;
-
-      e.preventDefault();
-      e.stopPropagation();
-
-      if (typeof e.stopImmediatePropagation === "function") {
-        e.stopImmediatePropagation();
-      }
-
-      targetBtn.click();
-    },
-    { capture: true }
-  );
-}
-
 function installSpacebarAudioHotkey() {
   if (window.__quranSpacebarHotkeyInstalled) return;
   window.__quranSpacebarHotkeyInstalled = true;
@@ -9296,31 +8756,58 @@ function buildHifzStageDropdownHtml(selectedId){
   const activeMeta = getHifzStageMeta(selected);
   const activePct = Number(progressMap[selected] || 0);
 
-  const nativeOptions = items.map((id) => {
-    const meta = getHifzStageMeta(id);
-    const sel = id === selected ? " selected" : "";
-    return `<option value="${id}"${sel}>${escHifzStageText(meta.title)}</option>`;
+  const groups = [
+    {
+      label: "reciting",
+      ids: items.filter((id) => getHifzStageMeta(id).kind !== "write")
+    },
+    {
+      label: "writing",
+      ids: items.filter((id) => getHifzStageMeta(id).kind === "write")
+    }
+  ].filter((group) => group.ids.length);
+
+  const nativeOptions = groups.map((group) => {
+    const opts = group.ids.map((id) => {
+      const meta = getHifzStageMeta(id);
+      const sel = id === selected ? " selected" : "";
+      return `<option value="${id}"${sel}>${escHifzStageText(meta.title)}</option>`;
+    }).join("");
+
+    return `
+      <optgroup label="${escHifzStageText(group.label)}">
+        ${opts}
+      </optgroup>
+    `;
   }).join("");
 
-  const menuItems = items.map((id) => {
-    const meta = getHifzStageMeta(id);
-    const pct = Number(progressMap[id] || 0);
-    const selectedCls = id === selected ? " is-selected" : "";
-    return `
-      <button
-        class="hifzStageDropItem${selectedCls}"
-        type="button"
-        data-stage-value="${id}"
-        role="option"
-        aria-selected="${id === selected ? "true" : "false"}"
-        style="--stage-progress:${pct}%;">
-        <span class="hifzStageDropItemMain">
-          <span class="hifzStageDropItemTitle">${escHifzStageText(meta.title)}</span>
-          <span class="hifzStageDropItemDesc">(${escHifzStageText(meta.menu)})</span>
-        </span>
-        <span class="hifzStageDropItemPct">${pct}%</span>
-      </button>
-    `;
+  const menuItems = groups.map((group) => {
+    const groupHead = `<div class="hifzStageDropGroupHead">${escHifzStageText(group.label)}</div>`;
+
+    const groupItems = group.ids.map((id) => {
+      const meta = getHifzStageMeta(id);
+      const pct = Number(progressMap[id] || 0);
+      const selectedCls = id === selected ? " is-selected" : "";
+
+      return `
+        <button
+          class="hifzStageDropItem${selectedCls}"
+          type="button"
+          data-stage-value="${id}"
+          role="option"
+          aria-selected="${id === selected ? "true" : "false"}"
+          style="--stage-progress:${pct}%;">
+
+          <span class="hifzStageDropItemMain">
+            <span class="hifzStageDropItemTitle">${escHifzStageText(meta.title)}</span>
+            <span class="hifzStageDropItemDesc">(${escHifzStageText(meta.menu)})</span>
+          </span>
+          <span class="hifzStageDropItemPct">${pct}%</span>
+        </button>
+      `;
+    }).join("");
+
+    return `${groupHead}${groupItems}`;
   }).join("");
 
   return `
@@ -10144,7 +9631,8 @@ function buildHifzRecallActionsHtml(a, esc){
           data-hifz-mark="bad"
           data-hifz-ref="${ref}"
           aria-label="Mark ${esc(ref)} as bad">
-          Bad
+          <span class="hifzRecallBtnMain">bad</span>
+          <span class="hifzRecallBtnKeyInline" aria-hidden="true">1</span>
         </button>
 
         <button
@@ -10153,7 +9641,8 @@ function buildHifzRecallActionsHtml(a, esc){
           data-hifz-mark="good"
           data-hifz-ref="${ref}"
           aria-label="Mark ${esc(ref)} as good">
-          Good
+          <span class="hifzRecallBtnMain">good</span>
+          <span class="hifzRecallBtnKeyInline" aria-hidden="true">3</span>
         </button>
       </div>
     </div>
@@ -10248,6 +9737,12 @@ function buildHifzWriteStageHtml(a, esc){
     ? buildAyahTranslationsHtml(prevAyahForHelper, esc)
     : "";
 
+  const prevLabelText = prevRefForHelper
+    ? `Previous ayah ${esc(prevRefForHelper)}`
+    : "Previous ayah";
+
+  const currentLabelText = `Current ayah ${esc(ref)}`;
+
   const model = buildHifzWriteModelForRef(ref);
   const writeState = getHifzWriteStateForRef(ref);
   const visibleTokenCount = Math.max(0, Math.min(model.targetChars.length, Number(writeState.cursor) || 0));
@@ -10334,17 +9829,18 @@ function buildHifzWriteStageHtml(a, esc){
 
   return `
     ${prevWordsHtmlForHelper ? `
-      <div class="hifzStage1PrevLabel">Previous ayah</div>
+      <div class="hifzStage1PrevLabel">${prevLabelText}</div>
       <div class="ayahText">${prevWordsHtmlForHelper}</div>
       ${prevTranslationsHtmlForHelper}
     ` : ""}
 
-    <div class="hifzStage1FocusLabel">Write ${esc(ref)}</div>
+    <div class="hifzStage1FocusLabel">${currentLabelText}</div>
 
     <div class="hifzWriteStageBox">
       <div
         class="hifzWriteInputShell${badChar ? " is-flash-bad" : ""}${resultFlash === "good" ? " is-result-good" : ""}${resultFlash === "bad" ? " is-result-bad" : ""}"
         data-hifz-write-shell="${ref}"
+        data-hifz-write-stage="${stage}"
         aria-label="Write ${esc(ref)} in Arabic">
         <input
           class="hifzWriteInput"
@@ -10413,6 +9909,9 @@ function buildHifzAyahBodyHtml(a, wordsHtml, esc){
   const prevTranslationsHtmlForHelper = prevAyahForHelper
     ? buildAyahTranslationsHtml(prevAyahForHelper, esc)
     : "";
+  const prevHelperLabelText = prevRefForHelper
+    ? `Previous ayah ${esc(prevRefForHelper)}`
+    : "Previous ayah";
 
   const isSingleFocusStage = isHifzSingleFocusStage(stage);
 
@@ -10420,7 +9919,7 @@ function buildHifzAyahBodyHtml(a, wordsHtml, esc){
     return `
       ${progressTop}
         ${(ref === focusRefForHelper && prevWordsHtmlForHelper) ? `
-        <div class="hifzStage1PrevLabel">Previous ayah</div>
+        <div class="hifzStage1PrevLabel">${prevHelperLabelText}</div>
         <div class="ayahText">${prevWordsHtmlForHelper}</div>
         ${prevTranslationsHtmlForHelper}
         ` : ""}
@@ -10449,17 +9948,14 @@ function buildHifzAyahBodyHtml(a, wordsHtml, esc){
     : "";
 
   const showPrevAyahHelper = stage === "1" || stage === "2" || stage === "3" || stage === "4";
+  const prevLabelText = prevRef ? `Previous ayah ${esc(prevRef)}` : "Previous ayah";
+  const currentLabelText = `Current ayah ${esc(ref)}`;
 
-  const focusHeadingHtml =
-    stage === "5" || stage === "6" || stage === "7"
-      ? ""
-      : `<div class="hifzStage1FocusLabel">Current ayah</div>`;
+  const focusHeadingHtml = `<div class="hifzStage1FocusLabel">${currentLabelText}</div>`;
 
   const hiddenCurrentAyahHtml =
     (stage === "5" || stage === "6" || stage === "7")
-      ? `
-        <div class="hifzStage1FocusLabel">${esc(ref)}</div>
-      `
+      ? ``
       : (stage === "2" || stage === "4")
           ? `
         <div class="ayahText hifzFirstWordOnly" dir="rtl" lang="ar">
@@ -10485,7 +9981,7 @@ function buildHifzAyahBodyHtml(a, wordsHtml, esc){
     return `
       ${progressTop}
         ${showPrevAyahHelper && prevWordsHtml ? `
-        <div class="hifzStage1PrevLabel">Previous ayah</div>
+        <div class="hifzStage1PrevLabel">${prevLabelText}</div>
         <div class="ayahText">${prevWordsHtml}</div>
         ${prevTranslationsHtml}
         ` : ""}
@@ -10499,7 +9995,8 @@ function buildHifzAyahBodyHtml(a, wordsHtml, esc){
             type="button"
             data-hifz-unhide="${ref}"
             aria-label="Show ${esc(ref)}">
-            Show ayah
+            <span class="hifzUnhideBtnMain">Show ayah</span>
+            <span class="hifzUnhideBtnHint" aria-hidden="true">(space)</span>
           </button>
         </div>
 
@@ -10512,12 +10009,12 @@ function buildHifzAyahBodyHtml(a, wordsHtml, esc){
     return `
       ${progressTop}
         ${showPrevAyahHelper && prevWordsHtml ? `
-        <div class="hifzStage1PrevLabel">Previous ayah</div>
+        <div class="hifzStage1PrevLabel">${prevLabelText}</div>
         <div class="ayahText">${prevWordsHtml}</div>
         ${prevTranslationsHtml}
         ` : ""}
 
-        <div class="hifzStage1FocusLabel">Current ayah</div>
+        <div class="hifzStage1FocusLabel">${currentLabelText}</div>
         <div class="ayahText">${wordsHtml}</div>
         ${buildAyahTranslationsHtml(a, esc)}
         ${buildHifzRecallActionsHtml(a, esc)}
@@ -10550,8 +10047,18 @@ let __renderPendingRef = null;
 
 function __renderCurrentNow(ref) {
   // ======= HIER BEGINNT DEIN ALTER renderCurrent BODY =======
-  currentRef = ref || currentRef;
-    invalidateWordDomCache();
+  const nextRef = String(ref || currentRef || "");
+  const prevRef = String(currentRef || "");
+
+  if (/^\d+:\d+$/.test(nextRef) && nextRef !== prevRef) {
+    if (/^\d+:\d+$/.test(prevRef)) {
+      setHifzAyahRevealed(prevRef, false);
+    }
+    setHifzAyahRevealed(nextRef, false);
+  }
+
+  currentRef = nextRef || currentRef;
+  invalidateWordDomCache();
 
   const qv = document.querySelector(".qView");
 
@@ -14520,6 +14027,7 @@ initSurfacePicker();        // ✅ Surface (bg/stage/chips/line + fav bg) Design
     console.warn("[account] initAccountPanel failed:", e);
   }
 
+  installHifzRecallHotkeys();
   installSpacebarAudioHotkey();
   installBookmarkHotkey();
   try { await seedHabashiPresetsIfNeeded(); } catch(e){ console.warn("[habashi] seed failed:", e); }

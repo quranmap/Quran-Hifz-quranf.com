@@ -849,14 +849,16 @@ html[data-theme="light"] .suraTick.is-hifz-bad::after{
 
 /* ✅ aktuelle Ayah = orange in Train + Test, dicker + stärker */
 .statusbar.is-hifz-range-ui .suraTick.is-active{
-  background: rgba(var(--rgb-warn),0.08);
+  background: rgba(255, 156, 42, 0.10);
+  box-shadow:
+    inset 0 0 0 var(--u1h) rgba(255, 156, 42, 0.18);
 }
 
 .statusbar.is-hifz-range-ui .suraTick.is-active::after{
-  background: var(--c-warn-95);
+  background: #ff9c2a;
   box-shadow:
-    0 0 calc(var(--glow-ring) * 1.45) var(--glow-warn-55),
-    0 0 calc(var(--glow-soft) * 0.78) var(--c-warn-55);
+    0 0 calc(var(--glow-ring) * 1.45) rgba(255, 156, 42, 0.56),
+    0 0 calc(var(--glow-soft) * 0.78) rgba(255, 156, 42, 0.56);
   z-index: 5;
 }
 
@@ -3241,13 +3243,11 @@ padding-right: calc(var(--mushaf-pad-x) + var(--u6w)); /* ✅ NUR links mehr Pla
   color: var(--color-ar-text);
   opacity: 1;
 
-  text-align: right;
-  text-justify: inter-word;
-  text-align-last: right;
+  text-align: center;
+  text-align-last: center;
 
-  /* ✅ rechter Innenabstand wie früher wieder zurück */
-  padding-right: calc(var(--stage-w) * 0.0175);
-  padding-left: calc(var(--stage-w) * 0.0016);
+  padding-right: calc(var(--stage-w) * 0.0095);
+  padding-left: calc(var(--stage-w) * 0.0095);
 }
 
 .ayahTrans{
@@ -3257,15 +3257,17 @@ padding-right: calc(var(--mushaf-pad-x) + var(--u6w)); /* ✅ NUR links mehr Pla
   height: auto;
   font-family: var(--font-de);
   opacity: .92;
-  padding-right: calc(var(--stage-w) * 0.0275);
+  text-align: center;
+  padding-right: calc(var(--stage-w) * 0.012);
   padding-bottom: calc(var(--stage-h) * 0.010);
-  padding-left: calc(var(--stage-w) * 0.0026);
+  padding-left: calc(var(--stage-w) * 0.012);
 }
 
 /* mehrere Übersetzungen */
 .ayahTransList{
   display:flex;
   flex-direction:column;
+  align-items:center;
   gap: calc(var(--stage-h) * 0.0161);
   padding-top: calc(var(--stage-h) * 0.001);
 }
@@ -3273,32 +3275,30 @@ padding-right: calc(var(--mushaf-pad-x) + var(--u6w)); /* ✅ NUR links mehr Pla
 .trLine{
   display:flex;
   flex-direction:column;
+  align-items:center;
   gap: calc(var(--stage-h) * 0.001);
+  width:100%;
+  text-align:center;
 }
 
 .trLabel{
   font-family: var(--font-meta);
   font-size: calc(var(--ayah-font-meta) * 0.5 * var(--tr-font-scale));
   opacity: .70;
+  text-align:center;
 }
 
 .trText{
   flex: 1;
 
-  /* ✅ FIX: Übersetzungs-Schriftgröße wieder “normal” & responsive */
   font-size: calc(var(--ayah-font-meta) * 1.11 * var(--tr-font-scale));
 
   opacity: 0.88;
   line-height: 1.55;
 
-  /* ✅ Blocksatz */
-  text-align: justify;
-  text-justify: inter-word;
+  text-align: center;
+  text-align-last: center;
 
-  /* ✅ damit die letzte Zeile nicht komisch steht */
-  text-align-last: left;
-
-  /* ✅ lange Wörter/URLs brechen sauber */
   overflow-wrap: anywhere;
   word-break: break-word;
   hyphens: auto;
@@ -3336,13 +3336,10 @@ padding-right: calc(var(--mushaf-pad-x) + var(--u6w)); /* ✅ NUR links mehr Pla
   transition: color 140ms ease, text-shadow 140ms ease;
 }
 
-/* ✅ Ayah-Mode: Blocksatz mit Word-Spans (Spaces kommen per JS) */
+/* ✅ Ayah-Mode: auch bei mehrzeiligen Ayat zentriert bleiben */
 .ayahText.is-justify{
-  text-align: justify;
-  text-justify: inter-word;
-
-  /* ✅ letzte Zeile NICHT blocken */
-  text-align-last: right;
+  text-align: center;
+  text-align-last: center;
 }
 
 .ayahText.is-justify .w,
@@ -8365,32 +8362,87 @@ html.rotate-phone .hifzRangeInput{
   display:grid;
   grid-template-columns:repeat(2,minmax(0,1fr));
   gap:calc(var(--stage-w) * 0.012);
-  padding-inline:calc(var(--stage-w) * 0.014); /* rechter/linker Außenabstand */
+  padding-inline:calc(var(--stage-w) * 0.014);
 }
 
 .hifzRecallBtn{
+  --recall-rgb: var(--rgb-accent);
+  --recall-border: rgba(var(--rgb-white),0.16);
+  --recall-glow: rgba(var(--rgb-accent),0.20);
+
   width:100%;
   min-height:calc(var(--stage-h) * 0.052);
   padding-inline:calc(var(--stage-w) * 0.015);
   border-radius:calc(var(--stage-h) * 0.010);
-  border:var(--u1h) solid rgba(255,255,255,0.12);
+  border:var(--u1h) solid var(--recall-border);
+
   font-family:var(--font-meta);
   font-size:calc(var(--ayah-font-meta) * 0.98);
   font-weight:700;
   line-height:1;
-  display:grid;
-  place-items:center;
+
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:calc(var(--stage-w) * 0.0055);
+
   text-align:center;
   cursor:pointer;
-  color:rgba(255,255,255,0.94);
+  color:rgb(var(--rgb-white));
   box-sizing:border-box;
   transform:translateY(0);
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(var(--rgb-white),0.10) 0%,
+      rgba(var(--rgb-white),0.02) 42%,
+      rgba(var(--rgb-black),0.16) 100%
+    ),
+    rgb(var(--recall-rgb));
+
+  box-shadow:
+    inset 0 calc(var(--u1h) * 1.2) calc(var(--u12h) * 0.78) rgba(var(--rgb-white),0.08),
+    inset 0 calc(var(--u2h) * -1.0) calc(var(--u12h) * 0.90) rgba(var(--rgb-black),0.18),
+    0 calc(var(--u2h) * 1.1) calc(var(--u12h) * 0.90) rgba(var(--rgb-black),0.16);
+
   transition:
     transform 140ms ease,
     box-shadow 180ms ease,
     border-color 180ms ease,
     background 180ms ease,
     opacity 180ms ease;
+}
+
+.hifzRecallBtnMain{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  line-height:1;
+}
+
+.hifzRecallBtnHint{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:calc(var(--stage-h) * 0.0225);
+  height:calc(var(--stage-h) * 0.0225);
+  padding-inline:calc(var(--stage-w) * 0.0035);
+  border-radius:var(--round-pill);
+  border:var(--u1h) solid rgba(var(--rgb-white),0.16);
+  background:rgba(var(--rgb-black),0.18);
+  box-shadow:
+    inset 0 0 0 var(--u1h) rgba(var(--rgb-white),0.05);
+}
+
+.hifzRecallBtnKey{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  color:inherit;
+  font-size:calc(var(--ayah-font-meta) * 0.70);
+  font-weight:650;
+  line-height:1;
 }
 
 .hifzRecallBtn:hover{
@@ -8402,61 +8454,54 @@ html.rotate-phone .hifzRangeInput{
 }
 
 .hifzRecallGood{
-  background:
-    linear-gradient(
-      180deg,
-      rgba(80,220,120,0.20) 0%,
-      rgba(80,220,120,0.14) 100%
-    );
-  border-color:rgba(80,220,120,0.34);
-  box-shadow:
-    inset 0 calc(var(--u1h) * 1.2) calc(var(--u12h) * 0.75) rgba(255,255,255,0.05),
-    0 calc(var(--u2h) * 1.1) calc(var(--u12h) * 0.90) rgba(0,0,0,0.16);
-}
-
-.hifzRecallGood:hover,
-.hifzRecallGood.is-active{
-  background:
-    linear-gradient(
-      180deg,
-      rgba(80,220,120,0.34) 0%,
-      rgba(80,220,120,0.24) 100%
-    );
-  border-color:rgba(80,220,120,0.60);
-  box-shadow:
-    inset 0 calc(var(--u1h) * 1.2) calc(var(--u12h) * 0.85) rgba(255,255,255,0.07),
-    0 0 0 calc(var(--glow-ring) * 1.10) rgba(80,220,120,0.22),
-    0 calc(var(--u2h) * 1.3) calc(var(--u14h) * 1.05) rgba(80,220,120,0.16),
-    0 0 calc(var(--glow-soft) * 0.72) rgba(80,220,120,0.28);
+  --recall-rgb: var(--rgb-ok);
+  --recall-border: rgba(var(--rgb-ok),0.92);
+  --recall-glow: rgba(var(--rgb-ok),0.20);
 }
 
 .hifzRecallBad{
-  background:
-    linear-gradient(
-      180deg,
-      rgba(255,90,90,0.20) 0%,
-      rgba(255,90,90,0.14) 100%
-    );
-  border-color:rgba(255,90,90,0.34);
-  box-shadow:
-    inset 0 calc(var(--u1h) * 1.2) calc(var(--u12h) * 0.75) rgba(255,255,255,0.05),
-    0 calc(var(--u2h) * 1.1) calc(var(--u12h) * 0.90) rgba(0,0,0,0.16);
+  --recall-rgb: var(--rgb-danger);
+  --recall-border: rgba(var(--rgb-danger),0.92);
+  --recall-glow: rgba(var(--rgb-danger),0.20);
 }
 
+.hifzRecallGood:hover,
+.hifzRecallGood.is-active,
 .hifzRecallBad:hover,
 .hifzRecallBad.is-active{
   background:
     linear-gradient(
       180deg,
-      rgba(255,90,90,0.34) 0%,
-      rgba(255,90,90,0.24) 100%
-    );
-  border-color:rgba(255,90,90,0.60);
+      rgba(var(--rgb-white),0.14) 0%,
+      rgba(var(--rgb-white),0.04) 42%,
+      rgba(var(--rgb-black),0.20) 100%
+    ),
+    rgb(var(--recall-rgb));
+
+  border-color:rgba(var(--recall-rgb),1);
+
   box-shadow:
-    inset 0 calc(var(--u1h) * 1.2) calc(var(--u12h) * 0.85) rgba(255,255,255,0.07),
-    0 0 0 calc(var(--glow-ring) * 1.10) rgba(255,90,90,0.22),
-    0 calc(var(--u2h) * 1.3) calc(var(--u14h) * 1.05) rgba(255,90,90,0.16),
-    0 0 calc(var(--glow-soft) * 0.72) rgba(255,90,90,0.28);
+    inset 0 calc(var(--u1h) * 1.3) calc(var(--u12h) * 0.82) rgba(var(--rgb-white),0.12),
+    inset 0 calc(var(--u2h) * -1.1) calc(var(--u12h) * 0.92) rgba(var(--rgb-black),0.18),
+    0 0 0 calc(var(--glow-ring) * 1.00) var(--recall-glow),
+    0 calc(var(--u2h) * 1.3) calc(var(--u14h) * 1.05) rgba(var(--rgb-black),0.14),
+    0 0 calc(var(--glow-soft) * 0.62) var(--recall-glow);
+}
+
+html[data-theme="light"] .hifzRecallBtn{
+  color:rgb(var(--rgb-black));
+  text-shadow:none;
+}
+
+html[data-theme="light"] .hifzRecallBtnHint{
+  border-color:rgba(var(--rgb-black),0.18);
+  background:rgba(var(--rgb-white),0.78);
+  box-shadow:
+    inset 0 0 0 var(--u1h) rgba(var(--rgb-white),0.20);
+}
+
+html[data-theme="light"] .hifzRecallBtnKey{
+  color:rgb(var(--rgb-black));
 }
 
 .hifzAyahBody{
@@ -8528,14 +8573,17 @@ html.rotate-phone .hifzRangeInput{
   opacity:0;
   background:
     linear-gradient(
-      180deg,
-      rgba(var(--rgb-white),0.60) 0%,
-      rgba(var(--rgb-ok),0.98) 7%,
-      rgba(var(--rgb-ok),0.84) 36%,
-      rgba(var(--rgb-ok),0.56) 100%
+      90deg,
+      var(--c-ink-45) 0%,
+      rgba(var(--rgb-ok),0.26) 18%,
+      rgba(var(--rgb-ok),0.56) 58%,
+      rgba(var(--rgb-ok),0.96) 100%
     );
   border-top:none;
-  box-shadow:none;
+  box-shadow:
+    inset 0 calc(var(--u1h) * 1.2) calc(var(--u10h) * 0.9) rgba(var(--rgb-white),0.16),
+    inset 0 calc(var(--u2h) * -1.0) calc(var(--u12h) * 1.0) rgba(var(--rgb-ok),0.30),
+    0 0 calc(var(--glow-soft) * 0.22) rgba(var(--rgb-ok),0.22);
   pointer-events:none;
   transition:
     width 180ms ease,
@@ -8569,13 +8617,11 @@ html.rotate-phone .hifzRangeInput{
 
 .hifzAyahHeaderRow.is-hifz-progress .hifzAyahProgress::before{
   opacity:1;
-  border-top: var(--u2h) solid rgba(var(--rgb-ok),1);
+  border-top:0;
   box-shadow:
-    inset 0 calc(var(--u1h) * 1.8) calc(var(--u12h) * 1.00) rgba(var(--rgb-white),0.38),
-    inset 0 calc(var(--u2h) * -1.35) calc(var(--u14h) * 1.40) rgba(var(--rgb-ok),0.62),
-    inset 0 0 calc(var(--u14h) * 1.80) rgba(var(--rgb-ok),0.48),
-    0 calc(var(--u1h) * -1.15) calc(var(--u10h) * 1.15) rgba(var(--rgb-ok),0.62),
-    0 0 calc(var(--glow-soft) * 0.28) rgba(var(--rgb-ok),0.24);
+    inset 0 calc(var(--u1h) * 1.2) calc(var(--u10h) * 0.9) rgba(var(--rgb-white),0.16),
+    inset 0 calc(var(--u2h) * -1.0) calc(var(--u12h) * 1.0) rgba(var(--rgb-ok),0.30),
+    0 0 calc(var(--glow-soft) * 0.22) rgba(var(--rgb-ok),0.22);
 }
 
 .hifzAyahHeaderRow.is-hifz-mastered .hifzAyahProgress::before{
@@ -8583,19 +8629,17 @@ html.rotate-phone .hifzRangeInput{
   opacity:1;
   background:
     linear-gradient(
-      180deg,
-      rgba(var(--rgb-white),0.72) 0%,
-      rgba(var(--rgb-ok),1) 6%,
-      rgba(var(--rgb-ok),0.92) 40%,
-      rgba(var(--rgb-ok),0.64) 100%
+      90deg,
+      var(--c-ink-45) 0%,
+      rgba(var(--rgb-ok),0.30) 14%,
+      rgba(var(--rgb-ok),0.62) 52%,
+      rgba(var(--rgb-ok),1) 100%
     );
-  border-top: var(--u2h) solid rgba(var(--rgb-ok),1);
+  border-top:0;
   box-shadow:
-    inset 0 calc(var(--u1h) * 2.1) calc(var(--u12h) * 1.15) rgba(var(--rgb-white),0.45),
-    inset 0 calc(var(--u2h) * -1.50) calc(var(--u14h) * 1.55) rgba(var(--rgb-ok),0.76),
-    inset 0 0 calc(var(--u14h) * 2.00) rgba(var(--rgb-ok),0.60),
-    0 calc(var(--u1h) * -1.30) calc(var(--u10h) * 1.30) rgba(var(--rgb-ok),0.78),
-    0 0 calc(var(--glow-soft) * 0.36) rgba(var(--rgb-ok),0.32);
+    inset 0 calc(var(--u1h) * 1.35) calc(var(--u10h) * 1.0) rgba(var(--rgb-white),0.18),
+    inset 0 calc(var(--u2h) * -1.1) calc(var(--u12h) * 1.05) rgba(var(--rgb-ok),0.34),
+    0 0 calc(var(--glow-soft) * 0.26) rgba(var(--rgb-ok),0.26);
 }
 
 .hifzAyahHeaderRow.is-hifz-bad .hifzAyahProgress::before{
@@ -8638,30 +8682,26 @@ html[data-theme="light"] .hifzAyahProgress::after{
 
 html[data-theme="light"] .hifzAyahHeaderRow.is-hifz-progress .hifzAyahProgress::before{
   opacity:1;
-  border-top: var(--u2h) solid rgba(var(--rgb-ok),0.98);
+  border-top:0;
   box-shadow:
-    inset 0 calc(var(--u1h) * 1.70) calc(var(--u12h) * 1.00) rgba(var(--rgb-white),0.34),
-    inset 0 calc(var(--u2h) * -1.25) calc(var(--u14h) * 1.28) rgba(var(--rgb-ok),0.42),
-    inset 0 0 calc(var(--u14h) * 1.55) rgba(var(--rgb-ok),0.26),
-    0 calc(var(--u1h) * -1.00) calc(var(--u10h) * 0.95) rgba(var(--rgb-ok),0.32),
-    0 0 calc(var(--glow-soft) * 0.18) rgba(var(--rgb-ok),0.18);
+    inset 0 calc(var(--u1h) * 1.05) calc(var(--u10h) * 0.75) rgba(var(--rgb-white),0.12),
+    inset 0 calc(var(--u2h) * -0.9) calc(var(--u12h) * 0.90) rgba(var(--rgb-ok),0.24),
+    0 0 calc(var(--glow-soft) * 0.14) rgba(var(--rgb-ok),0.16);
 }
 
 html[data-theme="light"] .hifzAyahHeaderRow.is-hifz-mastered .hifzAyahProgress::before{
   background:
     linear-gradient(
-      180deg,
-      rgba(var(--rgb-white),0.80) 0%,
-      rgba(var(--rgb-ok),1) 7%,
-      rgba(var(--rgb-ok),0.92) 40%,
-      rgba(var(--rgb-ok),0.66) 100%
+      90deg,
+      var(--c-ink-45) 0%,
+      rgba(var(--rgb-ok),0.30) 14%,
+      rgba(var(--rgb-ok),0.62) 52%,
+      rgba(var(--rgb-ok),1) 100%
     );
   box-shadow:
-    inset 0 calc(var(--u1h) * 1.85) calc(var(--u12h) * 1.05) rgba(var(--rgb-white),0.38),
-    inset 0 calc(var(--u2h) * -1.35) calc(var(--u14h) * 1.36) rgba(var(--rgb-ok),0.48),
-    inset 0 0 calc(var(--u14h) * 1.65) rgba(var(--rgb-ok),0.30),
-    0 calc(var(--u1h) * -1.08) calc(var(--u10h) * 1.00) rgba(var(--rgb-ok),0.36),
-    0 0 calc(var(--glow-soft) * 0.20) rgba(var(--rgb-ok),0.20);
+    inset 0 calc(var(--u1h) * 1.10) calc(var(--u10h) * 0.78) rgba(var(--rgb-white),0.14),
+    inset 0 calc(var(--u2h) * -0.95) calc(var(--u12h) * 0.95) rgba(var(--rgb-ok),0.26),
+    0 0 calc(var(--glow-soft) * 0.16) rgba(var(--rgb-ok),0.18);
 }
 
 .hifzAyahInner{
@@ -8681,7 +8721,7 @@ html[data-theme="light"] .hifzAyahHeaderRow.is-hifz-mastered .hifzAyahProgress::
   place-self:center;
   min-height:calc(var(--stage-h) * 0.032);
   padding-inline:calc(var(--stage-w) * 0.010);
-  border-radius:var(--round-pill);
+  border-radius:var(--jump-r);
   border:var(--u1h) solid var(--c-a-18);
   background:var(--c-a-10);
   color:var(--color-text);
@@ -8836,7 +8876,9 @@ html[data-theme="light"] .hifzAyahHeaderRow.is-hifz-mastered .hifzAyahProgress::
 .hifzUnhideBtn{
   min-height:calc(var(--stage-h) * 0.056);
   min-width:calc(var(--stage-w) * 0.168);
-  padding-inline:calc(var(--stage-w) * 0.020);
+  padding:
+    calc(var(--stage-h) * 0.0068)
+    calc(var(--stage-w) * 0.020);
   border-radius:var(--jump-r);
   border:var(--u1h) solid var(--c-a-35);
   background:var(--surah-topbar-bg);
@@ -8845,8 +8887,11 @@ html[data-theme="light"] .hifzAyahHeaderRow.is-hifz-mastered .hifzAyahProgress::
   font-size:calc(var(--ayah-font-meta) * 1.02);
   font-weight:700;
   line-height:1;
-  display:grid;
-  place-items:center;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:calc(var(--stage-h) * 0.004);
   text-align:center;
   cursor:pointer;
   box-shadow:
@@ -8858,6 +8903,20 @@ html[data-theme="light"] .hifzAyahHeaderRow.is-hifz-mastered .hifzAyahProgress::
     border-color 160ms ease,
     box-shadow 160ms ease,
     transform 160ms ease;
+}
+
+.hifzUnhideBtnMain{
+  display:block;
+  line-height:1;
+}
+
+.hifzUnhideBtnHint{
+  display:block;
+  font-size:calc(var(--ayah-font-meta) * 0.56);
+  font-weight:560;
+  line-height:1;
+  opacity:0.74;
+  letter-spacing:calc(var(--stage-w) * 0.00045);
 }
 
 .hifzUnhideBtn:hover{
@@ -8910,9 +8969,10 @@ html[data-theme="light"] .hifzAyahHeaderRow.is-hifz-mastered .hifzAyahProgress::
   font-size:calc(var(--ayah-font-ar) * 0.88);
   line-height:1.45;
   direction:rtl;
+  text-align:right;
   padding:
     calc(var(--stage-h) * 0.014)
-    calc(var(--stage-w) * 0.012)
+    calc(var(--stage-w) * 0.016)
     calc(var(--stage-h) * 0.032)
     calc(var(--stage-w) * 0.012);
 }
@@ -8925,10 +8985,19 @@ html[data-theme="light"] .hifzAyahHeaderRow.is-hifz-mastered .hifzAyahProgress::
   align-items:center;
   padding:
     calc(var(--stage-h) * 0.014)
-    calc(var(--stage-w) * 0.012)
+    calc(var(--stage-w) * 0.016)
     calc(var(--stage-h) * 0.032)
     calc(var(--stage-w) * 0.012);
   pointer-events:none;
+}
+
+.hifzWriteInputShell[data-hifz-write-stage="8"] .hifzWriteInput,
+.hifzWriteInputShell[data-hifz-write-stage="8"] .hifzWriteInputView{
+  padding:
+    calc(var(--stage-h) * 0.014)
+    calc(var(--stage-w) * 0.030)
+    calc(var(--stage-h) * 0.032)
+    calc(var(--stage-w) * 0.012);
 }
 .hifzWriteInputShell:focus-within{
   border-color:var(--c-a-65);
@@ -9721,6 +9790,27 @@ html[data-theme="light"] .hifzSurahSummaryCell.is-mastered .hifzSurahSummaryNo{
   overflow:hidden !important;
 }
 
+.hifzStageDropGroupHead{
+  display:flex;
+  align-items:center;
+  min-height:calc(var(--stage-h) * 0.028);
+  padding:
+    calc(var(--stage-h) * 0.0045)
+    calc(var(--stage-w) * 0.0075);
+  border-top:var(--u1h) solid var(--c-w-10);
+  background:rgba(var(--rgb-black),0.14);
+  color:var(--color-text-muted);
+  font-family:var(--font-meta);
+  font-size:calc(var(--ayah-font-meta) * 0.60);
+  font-weight:700;
+  letter-spacing:calc(var(--stage-w) * 0.0012);
+  text-transform:uppercase;
+}
+
+.hifzStageDropGroupHead:first-child{
+  border-top:0;
+}
+
 .hifzStageDropItem{
   gap:0 !important;
   margin:0 !important;
@@ -9729,6 +9819,7 @@ html[data-theme="light"] .hifzSurahSummaryCell.is-mastered .hifzSurahSummaryNo{
   border-top:var(--u1h) solid var(--c-w-10) !important;
 }
 
+.hifzStageDropGroupHead + .hifzStageDropItem,
 .hifzStageDropItem:first-child{
   border-top:0 !important;
 }
@@ -9749,12 +9840,17 @@ html[data-theme="light"] .hifzStageDropBtnArrow,
 html[data-theme="light"] .hifzStageDropItem,
 html[data-theme="light"] .hifzStageDropItemTitle,
 html[data-theme="light"] .hifzStageDropItemDesc,
-html[data-theme="light"] .hifzStageDropItemPct{
+html[data-theme="light"] .hifzStageDropItemPct,
+html[data-theme="light"] .hifzStageDropGroupHead{
   color:rgba(var(--rgb-ink),0.94) !important;
   text-shadow:none !important;
 }
 
 html[data-theme="light"] .hifzStageDropItem{
   background:rgba(var(--rgb-ink),0.045) !important;
+}
+
+html[data-theme="light"] .hifzStageDropGroupHead{
+  background:rgba(var(--rgb-ink),0.060) !important;
 }
 
