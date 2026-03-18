@@ -1165,15 +1165,37 @@ async function copyAyahRef(ref, { flashEl = null } = {}) {
 // NOTES (localStorage) – Ayah Notes
 // =========================
 const LS_NOTES = "q_notes_v1";
+let __notesMapCache = {};
+let __notesMapCacheReady = false;
+
+function __normalizeNotesMap(obj){
+  return (obj && typeof obj === "object") ? { ...obj } : {};
+}
+
+function __invalidateNotesMapCache(){
+  __notesMapCache = {};
+  __notesMapCacheReady = false;
+}
 
 function loadNotesMap(){
+  if (__notesMapCacheReady) return __notesMapCache;
+
   try{
     const raw = localStorage.getItem(LS_NOTES);
-    if (!raw) return {};
+    if (!raw) {
+      __notesMapCache = {};
+      __notesMapCacheReady = true;
+      return __notesMapCache;
+    }
+
     const obj = JSON.parse(raw);
-    return (obj && typeof obj === "object") ? obj : {};
+    __notesMapCache = __normalizeNotesMap(obj);
+    __notesMapCacheReady = true;
+    return __notesMapCache;
   }catch{
-    return {};
+    __notesMapCache = {};
+    __notesMapCacheReady = true;
+    return __notesMapCache;
   }
 }
 
@@ -1194,8 +1216,13 @@ function getNotesOnlyRefs(){
 }
 
 function saveNotesMap(obj){
+  const clean = __normalizeNotesMap(obj);
+
+  __notesMapCache = clean;
+  __notesMapCacheReady = true;
+
   try{
-    localStorage.setItem(LS_NOTES, JSON.stringify(obj || {}));
+    localStorage.setItem(LS_NOTES, JSON.stringify(clean));
   }catch{}
 }
 
@@ -1212,7 +1239,7 @@ function setNoteForRef(ref, text){
   if (!/^\d+:\d+$/.test(r)) return;
 
   const t = String(text ?? "");
-  const map = loadNotesMap();
+  const map = { ...loadNotesMap() };
 
   // leer => löschen
   if (!t.trim()){
@@ -1233,7 +1260,7 @@ function setNoteForRef(ref, text){
 // toggles CSS classes im DOM je nach Note-Existenz
 window.__refreshNoteIndicators = function(){
   try{
-    const map = loadNotesMap(); // ✅ 1x localStorage lesen + 1x JSON parse
+    const map = loadNotesMap();
 
     // Ayah cards
     document.querySelectorAll('button.ayahNoteBtn[data-note]').forEach((btn)=>{
@@ -1252,6 +1279,12 @@ window.__refreshNoteIndicators = function(){
     });
   }catch(e){}
 };
+
+window.addEventListener("storage", (e) => {
+  if (!e || e.key !== LS_NOTES) return;
+  __invalidateNotesMapCache();
+  try { window.__refreshNoteIndicators?.(); } catch(e){}
+});
 
 function ensureNotesModal(){
   let ov = document.getElementById("notesOverlay");
@@ -9632,7 +9665,9 @@ function buildHifzRecallActionsHtml(a, esc){
           data-hifz-ref="${ref}"
           aria-label="Mark ${esc(ref)} as bad">
           <span class="hifzRecallBtnMain">bad</span>
-          <span class="hifzRecallBtnKeyInline" aria-hidden="true">1</span>
+          <span class="hifzRecallBtnHint" aria-hidden="true">
+            <span class="hifzRecallBtnKey">1</span>
+          </span>
         </button>
 
         <button
@@ -9642,7 +9677,9 @@ function buildHifzRecallActionsHtml(a, esc){
           data-hifz-ref="${ref}"
           aria-label="Mark ${esc(ref)} as good">
           <span class="hifzRecallBtnMain">good</span>
-          <span class="hifzRecallBtnKeyInline" aria-hidden="true">3</span>
+          <span class="hifzRecallBtnHint" aria-hidden="true">
+            <span class="hifzRecallBtnKey">3</span>
+          </span>
         </button>
       </div>
     </div>
@@ -11437,6 +11474,25 @@ if (bmBtn) {
   if (!view.__ayahScrollBound) {
     view.__ayahScrollBound = true;
 
+    const rebuildAyahScrollCache = () => {
+      view.__ayahCardsCache = Array.from(view.querySelectorAll(".ayahMainCard[data-ref]"))
+        .filter((c) => /^\d+:\d+$/.test(c.dataset.ref || ""))
+        .map((c) => ({
+          el: c,
+          ref: String(c.dataset.ref || ""),
+          center: c.offsetTop + (c.offsetHeight / 2)
+        }));
+
+      view.__ayahCacheDirty = false;
+    };
+
+    const markAyahScrollCacheDirty = () => {
+      view.__ayahCacheDirty = true;
+    };
+
+    window.addEventListener("resize", markAyahScrollCacheDirty, { passive: true });
+    window.addEventListener("orientationchange", markAyahScrollCacheDirty, { passive: true });
+
     view.addEventListener("scroll", () => {
       // ✅ wenn Render-All pausiert war: beim Scrollen weiter rendern
       if (renderAll && i < refs.length && !view.__ayahRenderJob) {
@@ -11449,30 +11505,26 @@ if (bmBtn) {
         view.__ayahRAF = 0;
 
         if (view.__ayahCacheDirty || !view.__ayahCardsCache) {
-          view.__ayahCardsCache = Array.from(view.querySelectorAll(".ayahMainCard[data-ref]"))
-            .filter((c) => /^\d+:\d+$/.test(c.dataset.ref || ""));
-          view.__ayahCacheDirty = false;
+          rebuildAyahScrollCache();
         }
 
         const cards = view.__ayahCardsCache;
         if (!cards.length) return;
 
-        const box = view.getBoundingClientRect();
-        const cy = box.top + box.height * 0.40;
+        const cy = view.scrollTop + (view.clientHeight * 0.40);
 
         let best = null;
         let bestDist = Infinity;
 
-        for (const c of cards) {
-          const r = c.getBoundingClientRect();
-          const d = Math.abs((r.top + r.height / 2) - cy);
+        for (const item of cards) {
+          const d = Math.abs(item.center - cy);
           if (d < bestDist) {
             bestDist = d;
-            best = c;
+            best = item;
           }
         }
 
-        const rBest = best?.dataset?.ref;
+        const rBest = best?.ref;
         if (!rBest) return;
 
         // ✅ Wenn Ayah-Audio läuft: Fokus NICHT wechseln (lock wie Mushaf)
