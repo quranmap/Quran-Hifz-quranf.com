@@ -10257,7 +10257,7 @@ html[data-theme="light"] .hifzBadDropMenu{
 
 
 .hifzProgressBottomStack{
-  margin-top: calc(var(--stage-h) * 0.0195);
+  margin-top: 0;
   display:flex;
   flex-direction:column;
   gap: calc(var(--stage-h) * 0.0158);

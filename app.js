@@ -940,6 +940,8 @@ function __collectLocalAccountState(){
 
 function __applyAccountStateToLocal(state){
   try{
+    const hasOwn = (key) => Object.prototype.hasOwnProperty.call(state || {}, key);
+
     // Base
     const b = Array.isArray(state?.bookmarks) ? state.bookmarks : null;
     const n = (state?.notes && typeof state.notes === "object") ? state.notes : null;
@@ -948,15 +950,45 @@ function __applyAccountStateToLocal(state){
     // ✅ NEW: 2nd theme button (surface)
     const sf = (typeof state?.surfaceId === "string") ? String(state.surfaceId) : "";
 
-    const hasHifzResults = Object.prototype.hasOwnProperty.call(state || {}, "hifzResults");
-    const hasHifzRepeatTarget = Object.prototype.hasOwnProperty.call(state || {}, "hifzRepeatTarget");
-    const hasHifzStage = Object.prototype.hasOwnProperty.call(state || {}, "hifzStage");
-    const hasHifzRange = Object.prototype.hasOwnProperty.call(state || {}, "hifzRange");
-    const hasHifzStageTrendHistory = Object.prototype.hasOwnProperty.call(state || {}, "hifzStageTrendHistory");
+    const hasNonEmptyBookmarks = Array.isArray(b) && b.length > 0;
+    const hasNonEmptyNotes = !!n && Object.keys(n).length > 0;
 
-    if (b) localStorage.setItem("q_bookmarks_v1", JSON.stringify(b));
-    if (n) localStorage.setItem("q_notes_v1", JSON.stringify(n));
-    if (s) localStorage.setItem(LS_STYLE_THEME, s);
+    const hasNonEmptyFavPresets =
+      !!state?.favPresets &&
+      typeof state.favPresets === "object" &&
+      Object.keys(state.favPresets).length > 0;
+
+    const hasNonEmptyFavGroupTitles =
+      Array.isArray(state?.favGroupTitles) &&
+      state.favGroupTitles.length > 0;
+
+    const hasNonEmptyFavGroupMap =
+      !!state?.favGroupMap &&
+      typeof state.favGroupMap === "object" &&
+      Object.keys(state.favGroupMap).length > 0;
+
+    const hasNonEmptyFavGroupCollapsed =
+      !!state?.favGroupCollapsed &&
+      typeof state.favGroupCollapsed === "object" &&
+      Object.keys(state.favGroupCollapsed).length > 0;
+
+    const hasHifzResults = hasOwn("hifzResults");
+    const hasHifzRepeatTarget = hasOwn("hifzRepeatTarget");
+    const hasHifzStage = hasOwn("hifzStage");
+    const hasHifzRange = hasOwn("hifzRange");
+    const hasHifzStageTrendHistory = hasOwn("hifzStageTrendHistory");
+
+    if (hasNonEmptyBookmarks) {
+      localStorage.setItem("q_bookmarks_v1", JSON.stringify(b));
+    }
+
+    if (hasNonEmptyNotes) {
+      localStorage.setItem("q_notes_v1", JSON.stringify(n));
+    }
+
+    if (s) {
+      localStorage.setItem(LS_STYLE_THEME, s);
+    }
 
     // ✅ save surface id via official helper (same key used everywhere)
     if (sf) {
@@ -964,27 +996,33 @@ function __applyAccountStateToLocal(state){
     }
 
     // Favorites (optional/backward-compatible)
-    if (state?.favPresets && typeof state.favPresets === "object") {
+    if (hasNonEmptyFavPresets) {
       localStorage.setItem(LS_FAV_PRESETS, JSON.stringify(state.favPresets));
     }
+
     if (typeof state?.favActivePreset === "string" && state.favActivePreset.trim()) {
       localStorage.setItem(LS_FAV_ACTIVE_PRESET, String(state.favActivePreset));
     }
-    if (Array.isArray(state?.favGroupTitles)) {
+
+    if (hasNonEmptyFavGroupTitles) {
       localStorage.setItem(LS_FAV_GROUP_TITLES, JSON.stringify(state.favGroupTitles));
     }
-    if (state?.favGroupMap && typeof state.favGroupMap === "object") {
+
+    if (hasNonEmptyFavGroupMap) {
       localStorage.setItem(LS_FAV_GROUP_MAP, JSON.stringify(state.favGroupMap));
     }
-    if (state?.favGroupCollapsed && typeof state.favGroupCollapsed === "object") {
+
+    if (hasNonEmptyFavGroupCollapsed) {
       localStorage.setItem(LS_FAV_GROUP_COLLAPSED, JSON.stringify(state.favGroupCollapsed));
     }
 
     // ✅ HIFZ
     if (hasHifzResults) {
       const cleanResults = __normalizeHifzResultsMap(state?.hifzResults);
-      __hifzResultsCache = cleanResults;
-      localStorage.setItem(LS_HIFZ_RESULTS, JSON.stringify(cleanResults));
+      if (Object.keys(cleanResults).length > 0) {
+        __hifzResultsCache = cleanResults;
+        localStorage.setItem(LS_HIFZ_RESULTS, JSON.stringify(cleanResults));
+      }
     }
 
     if (hasHifzRepeatTarget) {
@@ -1005,8 +1043,12 @@ function __applyAccountStateToLocal(state){
       localStorage.setItem(LS_HIFZ_RANGE, safeRange);
     }
 
-    if (hasHifzStageTrendHistory) {
-      saveHifzStageTrendHistory(state?.hifzStageTrendHistory || []);
+    if (
+      hasHifzStageTrendHistory &&
+      Array.isArray(state?.hifzStageTrendHistory) &&
+      state.hifzStageTrendHistory.length > 0
+    ) {
+      saveHifzStageTrendHistory(state.hifzStageTrendHistory);
     }
 
     // UI refresh hooks
@@ -1023,7 +1065,9 @@ function __applyAccountStateToLocal(state){
     }catch{}
 
     // Style anwenden
-    try{ window.quranStyleSet?.(s); }catch{}
+    try{
+      if (s) window.quranStyleSet?.(s);
+    }catch{}
 
     // ✅ Surface anwenden (Preview=true damit kein extra Save/Sync-Loop entsteht)
     try{
@@ -4675,32 +4719,118 @@ function goToRef(ref, { updateUrl = true } = {}) {
     return true;
   }
 
-
   const n = normalizeRef(loose);
   if (!n) return false;
 
   const a = getAyah(n);
   if (!a) return false;
 
-if (updateUrl) setRefToHash(n);
+  const isVisibleEl = (el) => {
+    if (!el) return false;
+    try{
+      const cs = getComputedStyle(el);
+      if (cs.display === "none" || cs.visibility === "hidden") return false;
+      if (el.offsetParent === null && cs.position !== "fixed") return false;
+    }catch{}
+    return true;
+  };
 
-// ✅ immer die normalisierte Ref als aktuelle Wahrheit speichern
-currentRef = n;
+  const isHifzTrainModeActive = (() => {
+    try{
+      const mv = document.querySelector(".mView");
+      if (!isVisibleEl(mv)) return false;
+      return !!mv.querySelector(".hifzTrainTopBar");
+    }catch{
+      return false;
+    }
+  })();
 
-// 🟢 Sura für UI (Dropdown + Suraplay)
-setSurahContext(a.surah);
+  const isHifzTestModeActive = (() => {
+    try{
+      const qv = document.querySelector(".qView");
+      if (!isVisibleEl(qv)) return false;
+      return !!qv.querySelector(".hifzTestTopBar");
+    }catch{
+      return false;
+    }
+  })();
 
-// ✅ rendern + persistieren
-try { __autoScrollGate = false; } catch(e) {}   // <- User-Jump soll NICHT sofort zurückspringen
-renderCurrent(n);
-persistNavState();
+  const stageNow = String(hifzStageValue || "1");
+  const shouldGuardRange =
+    (isHifzTrainModeActive || isHifzTestModeActive) &&
+    !isHifzStageWithoutRenderedRangeUi(stageNow);
 
-// ✅ Jump Busy aus (falls gesetzt)
-try { window.__setJumpBusy?.(false); } catch(e) {}
+  if (shouldGuardRange) {
+    const allowedRefsRaw = (() => {
+      if (stageNow === "7" || stageNow === "10") {
+        return getAllRefs();
+      }
 
-// ✅ WICHTIG: Erfolg zurückgeben, damit doJump NICHT rot macht
-return true;
+      if (stageNow === "6" || stageNow === "8" || stageNow === "9") {
+        return getCurrentSurahRefsForHifz(n);
+      }
 
+      const bounds = getHifzRangeBoundsForRef(n);
+      const refsRaw = getCurrentSurahRefsForHifz(n);
+
+      return refsRaw.filter((refInRange) => {
+        const ay2 = getAyah(refInRange);
+        if (!ay2 || ay2.surah !== Number(bounds?.surahNo || 0)) return false;
+        return (
+          ay2.ayah >= Number(bounds?.fromAyah || 0) &&
+          ay2.ayah <= Number(bounds?.toAyah || 0)
+        );
+      });
+    })();
+
+    const allowedRefs = new Set(_sortRefs(allowedRefsRaw).map(String));
+
+    if (!allowedRefs.has(String(n))) {
+      if (isHifzTrainModeActive) {
+        const view = document.querySelector(".mView");
+        const flow = view?.querySelector(".mFlow");
+        if (flow) {
+          flow.innerHTML = buildHifzBadRangeMessageHtml(n);
+          view.__mushafCacheDirty = true;
+          view.__mushafBtnsCache = null;
+          view.__mushafPosCache = null;
+        }
+      } else if (isHifzTestModeActive) {
+        const view = document.querySelector(".qView");
+        const mount = view?.querySelector(".allCardsMount");
+
+        if (mount) {
+          mount.innerHTML = buildHifzBadRangeMessageHtml(n);
+          view.__ayahCacheDirty = true;
+          view.__ayahCardsCache = null;
+        } else if (view) {
+          view.innerHTML = buildHifzBadRangeMessageHtml(n);
+        }
+      }
+
+      try { window.__setJumpBusy?.(false); } catch(e) {}
+      return false;
+    }
+  }
+
+  if (updateUrl) setRefToHash(n);
+
+  // ✅ immer die normalisierte Ref als aktuelle Wahrheit speichern
+  currentRef = n;
+
+  // 🟢 Sura für UI (Dropdown + Suraplay)
+  setSurahContext(a.surah);
+
+  // ✅ rendern + persistieren
+  try { __autoScrollGate = false; } catch(e) {}   // <- User-Jump soll NICHT sofort zurückspringen
+  renderCurrent(n);
+  persistNavState();
+
+  // ✅ Jump Busy aus (falls gesetzt)
+  try { window.__setJumpBusy?.(false); } catch(e) {}
+
+  // ✅ WICHTIG: Erfolg zurückgeben, damit doJump NICHT rot macht
+  return true;
 }
 
 function initRouter(defaultRef = "2:255") {
