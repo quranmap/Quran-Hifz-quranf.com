@@ -1033,22 +1033,55 @@ function __applyAccountStateToLocal(state){
 }
 // Pull vom Server -> localStorage setzen
 async function __accountPull(){
-  if (!__isLoggedIn()) return false;
+  if (!__isLoggedIn()) {
+    throw new Error("Not logged in.");
+  }
+
+  let res;
+  let txt = "";
+  let j = null;
 
   try{
-    const res = await fetch(`${ACCOUNT_API_BASE}/api/state`, {
+    res = await fetch(`${ACCOUNT_API_BASE}/api/state`, {
       method: "GET",
       headers: __authHeaders(),
     });
-    if (!res.ok) return false;
-    const j = await res.json();
-    if (!j || !j.ok) return false;
-
-    __applyAccountStateToLocal(j.state || {});
-    return true;
-  }catch{
-    return false;
+  }catch(e){
+    throw new Error(`Account load request failed: ${String(e?.message || e)}`);
   }
+
+  try{
+    txt = await res.text();
+  }catch(e){
+    throw new Error(`Account load response could not be read: ${String(e?.message || e)}`);
+  }
+
+  try{
+    j = txt ? JSON.parse(txt) : {};
+  }catch{
+    j = { ok:false, error: txt || "Bad JSON" };
+  }
+
+  if (!res.ok) {
+    throw new Error(j?.error || j?.message || `HTTP ${res.status}`);
+  }
+
+  if (!j || !j.ok) {
+    throw new Error(j?.error || j?.message || "Account load failed.");
+  }
+
+  const state = (j.state && typeof j.state === "object") ? j.state : {};
+  const keyCount = Object.keys(state).length;
+
+  if (keyCount > 0) {
+    __applyAccountStateToLocal(state);
+  }
+
+  return {
+    ok: true,
+    empty: keyCount === 0,
+    keyCount
+  };
 }
 
 async function __accountPush(){
@@ -1173,8 +1206,8 @@ domReady().then(() => {
     try { __setAccountSyncUiState("syncing", { mode:"account" }); } catch {}
 
     __accountPull()
-      .then((ok) => {
-        if (ok) {
+      .then((pull) => {
+        if (pull?.ok) {
           try { __markAccountSynced("account"); } catch {}
         } else {
           try { __setAccountSyncUiState("error", { mode:"account" }); } catch {}
@@ -15204,11 +15237,26 @@ function bindAccountMenuActions(){
       } catch {}
     }
 
-    const res = await fetch(`${ACCOUNT_API_BASE}${path}`, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined
-    });
+    let res;
+    try {
+      res = await fetch(`${ACCOUNT_API_BASE}${path}`, {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined
+      });
+    } catch (err) {
+      const msg = String(err?.message || err || "");
+      const isLikelyCors =
+        /Failed to fetch|NetworkError|Load failed/i.test(msg);
+
+      if (isLikelyCors) {
+        throw new Error(
+          "Login blocked by CORS. The account API currently does not allow this website origin (https://quranf.com). The Cloudflare Worker must allow https://quranf.com in Access-Control-Allow-Origin."
+        );
+      }
+
+      throw err;
+    }
 
     const j = await res.json().catch(() => ({}));
     if (!res.ok || !j?.ok) throw new Error(j?.error || `HTTP ${res.status}`);
@@ -15303,14 +15351,19 @@ btnLogin.addEventListener("click", async () => {
     try {
       try { window.__setAccountSyncUiState?.("syncing", { mode:"account" }); } catch {}
 
-      const ok = await __accountPull?.();
-      if (!ok) throw new Error("Could not load account storage.");
+      const pull = await __accountPull?.();
+      if (!pull?.ok) throw new Error("Could not load account storage.");
 
       __setAccountSyncConflict(false);
 
       try { window.__markAccountSynced?.("account"); } catch {}
       refreshButtons();
-      setMsg("Loaded account storage to browser storage.", false);
+
+      if (pull.empty) {
+        setMsg("Account storage is empty. Nothing was loaded.", false);
+      } else {
+        setMsg(`Loaded account storage to browser storage (${pull.keyCount} keys).`, false);
+      }
     } catch (e) {
       try { window.__setAccountSyncUiState?.("error", { mode:"account" }); } catch {}
       setMsg(String(e?.message || e), true);
