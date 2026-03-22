@@ -15362,7 +15362,10 @@ btnLogin.addEventListener("click", async () => {
       if (pull.empty) {
         setMsg("Account storage is empty. Nothing was loaded.", false);
       } else {
-        setMsg(`Loaded account storage to browser storage (${pull.keyCount} keys).`, false);
+        setMsg(`Loaded account storage to browser storage (${pull.keyCount} keys). Reloading...`, false);
+        setTimeout(() => {
+          window.location.reload();
+        }, 80);
       }
     } catch (e) {
       try { window.__setAccountSyncUiState?.("error", { mode:"account" }); } catch {}
