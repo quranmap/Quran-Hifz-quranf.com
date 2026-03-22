@@ -76,6 +76,35 @@
       <button class="acctClose" id="acctClose" type="button" aria-label="Close" title="Close">✕</button>
     </div>
 
+    <div class="acctMetaRow acctMetaRowWrap">
+      <div class="acctMetaChip acctMetaChipHifz">
+        <span style="display:inline-flex; align-items:center; gap:calc(var(--stage-w) * 0.0042);">
+          <span class="acctMetaLabel">Hifzscore</span>
+          <span
+            class="hifzHelpInfo"
+            data-hifz-help="hifzscore-account"
+            data-hifz-help-title="Hifzscore"
+            data-hifz-help-text="Score for memorizing the quran at https://quranf.com"
+            aria-label="Score for memorizing the quran at https://quranf.com">?</span>
+        </span>
+        <span class="acctMetaValue" id="acctHifzScoreValue">0/1000000000</span>
+      </div>
+    </div>
+
+    <div class="acctMetaRow acctMetaRowSync">
+      <div class="acctSyncCard" id="acctSyncCard" aria-live="polite">
+        <div class="acctSyncLine">
+          <span class="acctSyncLabel">Sync status</span>
+          <span class="acctSyncValue" id="acctSyncStatusValue">Local only</span>
+        </div>
+
+        <div class="acctSyncLine">
+          <span class="acctSyncLabel">Last sync</span>
+          <span class="acctSyncValue acctSyncValueMuted" id="acctSyncLastValue">—</span>
+        </div>
+      </div>
+    </div>
+
     <div class="acctRow">
       <input id="acctUsername" class="acctInput" type="text" autocomplete="username"
              placeholder="example Muhammad114" aria-label="Username">
@@ -86,6 +115,15 @@
     </div>
 
     <div id="acctMsg" class="acctMsg" aria-live="polite"></div>
+
+    <div class="acctRow acctSyncTools" id="acctSyncTools">
+      <button id="acctLoadAccountBtn" class="acctBtnSmall" type="button">Load account</button>
+      <button id="acctSaveDeviceBtn" class="acctBtnSmall" type="button">Save device</button>
+    </div>
+
+    <div class="acctSyncHint" id="acctSyncHint">
+      When browser storage and account storage differ, use “Load account” or “Save device”.
+    </div>
 
 <div class="acctRow acctRowBottom">
   <button id="acctExportBtn" class="acctBtnSmall" type="button">Export settings</button>

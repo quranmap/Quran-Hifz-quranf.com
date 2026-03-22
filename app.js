@@ -647,6 +647,124 @@ function __isLoggedIn(){
 
 let __syncTimer = 0;
 let __syncInFlight = false;
+const LS_ACC_SYNC_CONFLICT = "q_account_sync_conflict_v1";
+
+function __hasAccountSyncConflict(){
+  try { return localStorage.getItem(LS_ACC_SYNC_CONFLICT) === "1"; }
+  catch { return false; }
+}
+
+function __setAccountSyncConflict(on){
+  try{
+    if (on) localStorage.setItem(LS_ACC_SYNC_CONFLICT, "1");
+    else localStorage.removeItem(LS_ACC_SYNC_CONFLICT);
+  }catch{}
+}
+
+const LS_ACC_SYNC_LAST_AT = "q_account_sync_last_at_v1";
+const LS_ACC_SYNC_STATUS  = "q_account_sync_status_v1";
+const LS_ACC_SYNC_MODE    = "q_account_sync_mode_v1";
+
+function __formatAccountSyncTime(ts){
+  const n = Number(ts || 0);
+  if (!Number.isFinite(n) || n <= 0) return "—";
+
+  try{
+    return new Intl.DateTimeFormat(undefined, {
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit"
+    }).format(new Date(n));
+  }catch{
+    return "—";
+  }
+}
+
+function __getAccountSyncSnapshot(){
+  let status = "idle";
+  let mode = "";
+  let lastAt = 0;
+
+  try { status = String(localStorage.getItem(LS_ACC_SYNC_STATUS) || "idle"); } catch {}
+  try { mode = String(localStorage.getItem(LS_ACC_SYNC_MODE) || ""); } catch {}
+  try { lastAt = Number(localStorage.getItem(LS_ACC_SYNC_LAST_AT) || "0"); } catch {}
+
+  return { status, mode, lastAt };
+}
+
+function __setAccountSyncUiState(status, { mode="", save=true } = {}){
+  const safeStatus = String(status || "").trim() || "idle";
+  const safeMode = String(mode || "").trim();
+
+  if (save) {
+    try { localStorage.setItem(LS_ACC_SYNC_STATUS, safeStatus); } catch {}
+    try {
+      if (safeMode) localStorage.setItem(LS_ACC_SYNC_MODE, safeMode);
+      else localStorage.removeItem(LS_ACC_SYNC_MODE);
+    } catch {}
+  }
+
+  try { window.__refreshAccountSyncUi?.(); } catch {}
+}
+
+function __markAccountSynced(mode="live"){
+  const now = Date.now();
+  try { localStorage.setItem(LS_ACC_SYNC_LAST_AT, String(now)); } catch {}
+  __setAccountSyncUiState("synced", { mode });
+}
+
+function __refreshAccountSyncUi(){
+  const statusEl = document.getElementById("acctSyncStatusValue");
+  const lastEl = document.getElementById("acctSyncLastValue");
+
+  if (!statusEl || !lastEl) return;
+
+  let inOk = false;
+  try { inOk = !!__isLoggedIn?.(); } catch {}
+
+  if (!inOk) {
+    statusEl.textContent = "Local only";
+    lastEl.textContent = "—";
+    return;
+  }
+
+  if (__hasAccountSyncConflict()) {
+    statusEl.textContent = "Browser ≠ Account";
+    lastEl.textContent = "Use Load / Save";
+    return;
+  }
+
+  const snap = __getAccountSyncSnapshot();
+
+  let statusText = "Ready";
+
+  if (snap.status === "pending") {
+    statusText = snap.mode === "live" ? "Pending live sync" : "Pending sync";
+  } else if (snap.status === "syncing") {
+    if (snap.mode === "login") statusText = "Syncing login…";
+    else if (snap.mode === "live") statusText = "Syncing live…";
+    else if (snap.mode === "account") statusText = "Loading account…";
+    else statusText = "Syncing…";
+  } else if (snap.status === "synced") {
+    if (snap.mode === "login") statusText = "Synced after login";
+    else if (snap.mode === "live") statusText = "Live synced";
+    else if (snap.mode === "account") statusText = "Synced from account";
+    else statusText = "Synced";
+  } else if (snap.status === "error") {
+    if (snap.mode === "login") statusText = "Login sync error";
+    else if (snap.mode === "live") statusText = "Live sync error";
+    else if (snap.mode === "account") statusText = "Account load error";
+    else statusText = "Sync error";
+  }
+
+  statusEl.textContent = statusText;
+  lastEl.textContent = __formatAccountSyncTime(snap.lastAt);
+}
+
+window.__refreshAccountSyncUi = __refreshAccountSyncUi;
+window.__setAccountSyncUiState = __setAccountSyncUiState;
+window.__markAccountSynced = __markAccountSynced;
 
 // ✅ Account-State: Bookmarks + Notes + Style + Favorites-Pages + Group-Titles/Map/Collapsed + Habashi Labels
 function __collectLocalAccountState(){
@@ -668,6 +786,7 @@ function __collectLocalAccountState(){
   let hifzRepeatTarget = 5;
   let hifzStage = "1";
   let hifzRange = "5-10";
+  let hifzStageTrendHistory = [];
 
   // ---- base keys
   try { bookmarks = JSON.parse(localStorage.getItem("q_bookmarks_v1") || "[]"); } catch { bookmarks = []; }
@@ -690,6 +809,7 @@ function __collectLocalAccountState(){
   try { hifzRepeatTarget = Number(localStorage.getItem(LS_HIFZ_REPEAT_TARGET) || 5); } catch { hifzRepeatTarget = 5; }
   try { hifzStage = String(localStorage.getItem(LS_HIFZ_STAGE) || "1").trim() || "1"; } catch { hifzStage = "1"; }
   try { hifzRange = String(localStorage.getItem(LS_HIFZ_RANGE) || "5-10").trim() || "5-10"; } catch { hifzRange = "5-10"; }
+  try { hifzStageTrendHistory = loadHifzStageTrendHistory(); } catch { hifzStageTrendHistory = []; }
 
   // ---- sanitize base
   if (!Array.isArray(bookmarks)) bookmarks = [];
@@ -789,6 +909,8 @@ function __collectLocalAccountState(){
   hifzStage = /^(10|[1-9])$/.test(String(hifzStage || "")) ? String(hifzStage) : "1";
   hifzRange = String(hifzRange || "").trim() || "5-10";
 
+  const cleanHifzStageTrendHistory = loadHifzStageTrendHistory().slice(-HIFZ_STAGE_TREND_KEEP_DAYS);
+
   // active preset sanitize
   favActivePreset = String(favActivePreset || "").trim() || "actual";
 
@@ -812,6 +934,7 @@ function __collectLocalAccountState(){
     hifzRepeatTarget,
     hifzStage,
     hifzRange,
+    hifzStageTrendHistory: cleanHifzStageTrendHistory,
   };
 }
 
@@ -829,6 +952,7 @@ function __applyAccountStateToLocal(state){
     const hasHifzRepeatTarget = Object.prototype.hasOwnProperty.call(state || {}, "hifzRepeatTarget");
     const hasHifzStage = Object.prototype.hasOwnProperty.call(state || {}, "hifzStage");
     const hasHifzRange = Object.prototype.hasOwnProperty.call(state || {}, "hifzRange");
+    const hasHifzStageTrendHistory = Object.prototype.hasOwnProperty.call(state || {}, "hifzStageTrendHistory");
 
     if (b) localStorage.setItem("q_bookmarks_v1", JSON.stringify(b));
     if (n) localStorage.setItem("q_notes_v1", JSON.stringify(n));
@@ -881,10 +1005,15 @@ function __applyAccountStateToLocal(state){
       localStorage.setItem(LS_HIFZ_RANGE, safeRange);
     }
 
+    if (hasHifzStageTrendHistory) {
+      saveHifzStageTrendHistory(state?.hifzStageTrendHistory || []);
+    }
+
     // UI refresh hooks
     try { window.__refreshFavCount?.(); } catch(e) {}
     try { window.__refreshFavButtonDecor?.(); } catch(e) {}
     try { window.__refreshNoteIndicators?.(); } catch(e) {}
+    try { window.__refreshAccountHifzScore?.(); } catch(e) {}
 
     // Wenn wir gerade in Favorites sind: Seite neu rendern
     try{
@@ -943,14 +1072,37 @@ async function __accountPush(){
 
 // Debounced: nach Änderungen (Bookmark/Note/Style) einmal speichern
 function __accountScheduleSync(){
-  if (!__isLoggedIn()) return;
+  if (!__isLoggedIn()) {
+    try { window.__refreshAccountSyncUi?.(); } catch {}
+    return;
+  }
+
+  if (__hasAccountSyncConflict()) {
+    try { window.__refreshAccountSyncUi?.(); } catch {}
+    return;
+  }
+
+  try { __setAccountSyncUiState("pending", { mode:"live" }); } catch {}
 
   if (__syncTimer) clearTimeout(__syncTimer);
   __syncTimer = setTimeout(async () => {
     __syncTimer = 0;
     if (__syncInFlight) return;
+
     __syncInFlight = true;
-    try { await __accountPush(); } finally { __syncInFlight = false; }
+
+    try {
+      __setAccountSyncUiState("syncing", { mode:"live" });
+
+      const ok = await __accountPush();
+
+      if (ok) __markAccountSynced("live");
+      else __setAccountSyncUiState("error", { mode:"live" });
+    } catch {
+      __setAccountSyncUiState("error", { mode:"live" });
+    } finally {
+      __syncInFlight = false;
+    }
   }, 350);
 }
 
@@ -961,6 +1113,7 @@ window.__accountScheduleSync = __accountScheduleSync;
 async function __accountSendFavEvent(ev){
   try{
     if (!__isLoggedIn()) return false;
+    if (__hasAccountSyncConflict()) return false;
 
     const res = await fetch(`${ACCOUNT_API_BASE}/api/fav-event`, {
       method: "POST",
@@ -980,12 +1133,15 @@ let __favEvQ = Promise.resolve(true);
 
 function __accountFavEventQueued(ev){
   if (!__isLoggedIn()) return Promise.resolve(false);
+  if (__hasAccountSyncConflict()) return Promise.resolve(false);
   __favEvQ = __favEvQ.then(() => __accountSendFavEvent(ev));
   return __favEvQ;
 }
 
 // ✅ Flush: vor Logout alles rausschieben
 async function __accountFlushAll(){
+  if (__hasAccountSyncConflict()) return;
+
   // 1) scheduled full sync sofort ausführen (falls timer läuft)
   try{
     if (__syncTimer){
@@ -1009,7 +1165,26 @@ window.__accountFlushAll = __accountFlushAll;
 // Beim Laden: wenn Token existiert -> Serverstate holen
 domReady().then(() => {
   if (__isLoggedIn()){
-    __accountPull().catch(()=>{});
+    if (__hasAccountSyncConflict()) {
+      try { window.__refreshAccountSyncUi?.(); } catch {}
+      return;
+    }
+
+    try { __setAccountSyncUiState("syncing", { mode:"account" }); } catch {}
+
+    __accountPull()
+      .then((ok) => {
+        if (ok) {
+          try { __markAccountSynced("account"); } catch {}
+        } else {
+          try { __setAccountSyncUiState("error", { mode:"account" }); } catch {}
+        }
+      })
+      .catch(() => {
+        try { __setAccountSyncUiState("error", { mode:"account" }); } catch {}
+      });
+  } else {
+    try { window.__refreshAccountSyncUi?.(); } catch {}
   }
 });
 
@@ -4864,13 +5039,69 @@ if (favClearBtn && !favClearBtn._bound) {
     document.body.appendChild(mNoTip);
   }
 
-  const escTip = (s) =>
-    String(s ?? "").replace(/[&<>"']/g, (c) => ({
-      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
-    }[c]));
-    
+const escTip = (s) =>
+  String(s ?? "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[c]));
 
-  function _firstActiveTranslationText(ref){
+let hifzHelpTip = document.getElementById("hifzHelpTip");
+if (!hifzHelpTip) {
+  hifzHelpTip = document.createElement("div");
+  hifzHelpTip.id = "hifzHelpTip";
+  hifzHelpTip.className = "suraProgTip";
+  document.body.appendChild(hifzHelpTip);
+}
+
+if (!document.__hifzHelpTooltipBound) {
+  document.__hifzHelpTooltipBound = true;
+
+  let _lastHifzHelpKey = "";
+
+  document.addEventListener("mousemove", (e) => {
+    if (!tooltipsAllowed()) {
+      _lastHifzHelpKey = "";
+      _hideTip(hifzHelpTip);
+      return;
+    }
+
+    if (e.target?.closest?.("#suraProgTip, #wordTip, #mNoTip, #hifzHelpTip")) return;
+
+    const helpEl = e.target?.closest?.("[data-hifz-help]");
+    if (!helpEl) {
+      _lastHifzHelpKey = "";
+      _hideTip(hifzHelpTip);
+      return;
+    }
+
+    const title = String(helpEl.dataset?.hifzHelpTitle || "Help");
+    const text = String(helpEl.dataset?.hifzHelpText || "");
+    const key = `${helpEl.dataset?.hifzHelp || ""}|${title}|${text}`;
+
+    if (_lastHifzHelpKey !== key) {
+      _lastHifzHelpKey = key;
+      hifzHelpTip.innerHTML = `
+        <div class="tipRef">${escTip(title)}</div>
+        ${text ? `<div class="tipTr">${escTip(text)}</div>` : ``}
+      `;
+    }
+
+    _placeTip(hifzHelpTip, e.clientX, e.clientY);
+  }, { passive: true });
+
+  document.addEventListener("mouseout", (e) => {
+    const helpEl = e.target?.closest?.("[data-hifz-help]");
+    if (!helpEl) return;
+
+    const rel = e.relatedTarget;
+    const stillInsideHelp = rel?.closest?.("[data-hifz-help]");
+    if (stillInsideHelp) return;
+
+    _lastHifzHelpKey = "";
+    _hideTip(hifzHelpTip);
+  }, { passive: true });
+}
+
+function _firstActiveTranslationText(ref){
     try{
       const a = getAyah(ref);
       if (!a) return "";
@@ -8789,58 +9020,35 @@ function buildHifzStageDropdownHtml(selectedId){
   const activeMeta = getHifzStageMeta(selected);
   const activePct = Number(progressMap[selected] || 0);
 
-  const groups = [
-    {
-      label: "reciting",
-      ids: items.filter((id) => getHifzStageMeta(id).kind !== "write")
-    },
-    {
-      label: "writing",
-      ids: items.filter((id) => getHifzStageMeta(id).kind === "write")
-    }
-  ].filter((group) => group.ids.length);
-
-  const nativeOptions = groups.map((group) => {
-    const opts = group.ids.map((id) => {
-      const meta = getHifzStageMeta(id);
-      const sel = id === selected ? " selected" : "";
-      return `<option value="${id}"${sel}>${escHifzStageText(meta.title)}</option>`;
-    }).join("");
-
-    return `
-      <optgroup label="${escHifzStageText(group.label)}">
-        ${opts}
-      </optgroup>
-    `;
+  const nativeOptions = items.map((id) => {
+    const meta = getHifzStageMeta(id);
+    const sel = id === selected ? " selected" : "";
+    return `<option value="${id}"${sel}>${escHifzStageText(meta.title)}</option>`;
   }).join("");
 
-  const menuItems = groups.map((group) => {
-    const groupHead = `<div class="hifzStageDropGroupHead">${escHifzStageText(group.label)}</div>`;
+  const menuItems = items.map((id) => {
+    const meta = getHifzStageMeta(id);
+    const pct = Number(progressMap[id] || 0);
+    const selectedCls = id === selected ? " is-selected" : "";
+    return `
+      <button
+        class="hifzStageDropItem${selectedCls}"
+        type="button"
+        data-stage-value="${id}"
+        role="option"
+        aria-selected="${id === selected ? "true" : "false"}"
+        style="--stage-progress:${pct}%;">
 
-    const groupItems = group.ids.map((id) => {
-      const meta = getHifzStageMeta(id);
-      const pct = Number(progressMap[id] || 0);
-      const selectedCls = id === selected ? " is-selected" : "";
+        <span class="hifzStageDropItemMain">
+          <span class="hifzStageDropItemTitle">${escHifzStageText(meta.title)}</span>
+          <span class="hifzStageDropItemDesc">${escHifzStageText(meta.menu)}</span>
+        </span>
 
-      return `
-        <button
-          class="hifzStageDropItem${selectedCls}"
-          type="button"
-          data-stage-value="${id}"
-          role="option"
-          aria-selected="${id === selected ? "true" : "false"}"
-          style="--stage-progress:${pct}%;">
-
-          <span class="hifzStageDropItemMain">
-            <span class="hifzStageDropItemTitle">${escHifzStageText(meta.title)}</span>
-            <span class="hifzStageDropItemDesc">(${escHifzStageText(meta.menu)})</span>
-          </span>
+        <span class="hifzStageDropItemSide">
           <span class="hifzStageDropItemPct">${pct}%</span>
-        </button>
-      `;
-    }).join("");
-
-    return `${groupHead}${groupItems}`;
+        </span>
+      </button>
+    `;
   }).join("");
 
   return `
@@ -8919,6 +9127,9 @@ function saveHifzResults(obj){
   try{
     localStorage.setItem(LS_HIFZ_RESULTS, JSON.stringify(clean));
   }catch{}
+
+  try { recordHifzStageTrendSnapshot({ force: true }); } catch {}
+  try { window.__refreshAccountHifzScore?.(); } catch(e) {}
   try { window.__accountScheduleSync?.(); } catch(e) {}
 }
 
@@ -8939,6 +9150,404 @@ function loadHifzRepeatTarget(){
   return __hifzRepeatTargetCache;
 }
 
+const LS_HIFZ_STAGE_TREND = "q_hifz_stage_trend_v1";
+const HIFZ_STAGE_TREND_KEEP_DAYS = 36525; // 100 Jahre daily
+const HIFZ_STAGE_TREND_MIN_VIEW_DAYS = 14;
+const HIFZ_STAGE_TREND_LABEL_TARGET = 12;
+
+function _hifzTrendDateKeyFromDate(d){
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function _hifzTrendTodayKey(){
+  return _hifzTrendDateKeyFromDate(new Date());
+}
+
+function _hifzTrendShiftIso(baseIso, offsetDays){
+  const d = new Date(`${baseIso}T12:00:00`);
+  d.setDate(d.getDate() + Number(offsetDays || 0));
+  return _hifzTrendDateKeyFromDate(d);
+}
+
+function _hifzTrendLabel(iso){
+  const parts = String(iso || "").split("-");
+  if (parts.length !== 3) return String(iso || "");
+  return `${parts[2]}.${parts[1]}`;
+}
+
+function _normalizeHifzTrendStages(stages){
+  const out = {};
+  for (let i = 1; i <= 10; i += 1) {
+    const key = String(i);
+    const raw = Number(stages?.[key] || 0);
+    out[key] = Math.max(0, Math.min(100, raw));
+  }
+  return out;
+}
+
+function _getHifzTrendAutoDays(requestedDays, historyCount){
+  const explicit = Number(requestedDays);
+
+  if (Number.isFinite(explicit) && explicit >= 2) {
+    return Math.max(2, Math.floor(explicit));
+  }
+
+  if (Number(historyCount) >= 2) {
+    return Math.max(2, Math.floor(historyCount));
+  }
+
+  return HIFZ_STAGE_TREND_MIN_VIEW_DAYS;
+}
+
+function _getHifzTrendLabelStep(seriesLength){
+  const n = Math.max(1, Number(seriesLength) || 1);
+
+  if (n <= 21) return 1;
+  return Math.max(1, Math.ceil(n / HIFZ_STAGE_TREND_LABEL_TARGET));
+}
+
+function loadHifzStageTrendHistory(){
+  try{
+    const raw = localStorage.getItem(LS_HIFZ_STAGE_TREND);
+    if (!raw) return [];
+
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return [];
+
+    return arr
+      .filter((row) => /^\d{4}-\d{2}-\d{2}$/.test(String(row?.date || "")))
+      .map((row) => ({
+        date: String(row.date),
+        stages: _normalizeHifzTrendStages(row.stages || {})
+      }))
+      .sort((a, b) => String(a.date).localeCompare(String(b.date)))
+      .slice(-HIFZ_STAGE_TREND_KEEP_DAYS);
+  }catch{
+    return [];
+  }
+}
+
+function saveHifzStageTrendHistory(list){
+  try{
+    const clean = Array.isArray(list)
+      ? list
+          .filter((row) => /^\d{4}-\d{2}-\d{2}$/.test(String(row?.date || "")))
+          .map((row) => ({
+            date: String(row.date),
+            stages: _normalizeHifzTrendStages(row.stages || {})
+          }))
+          .sort((a, b) => String(a.date).localeCompare(String(b.date)))
+          .slice(-HIFZ_STAGE_TREND_KEEP_DAYS)
+      : [];
+
+    localStorage.setItem(LS_HIFZ_STAGE_TREND, JSON.stringify(clean));
+  }catch{}
+}
+
+function buildHifzStageTrendSnapshot(){
+  if (!dataReady || typeof getAllRefs !== "function") return null;
+
+  const refs = getAllRefs() || [];
+  if (!refs.length) return null;
+
+  const map = loadHifzResults();
+  const target = Math.max(1, Number(loadHifzRepeatTarget()) || 1);
+  const sums = {};
+
+  for (let i = 1; i <= 10; i += 1) {
+    sums[String(i)] = 0;
+  }
+
+  for (const ref of refs) {
+    const row = (map?.[ref] && typeof map[ref] === "object") ? map[ref] : {};
+
+    for (let i = 1; i <= 10; i += 1) {
+      const key = String(i);
+      const goodCount = Math.max(0, Number(row?.[key]?.goodCount || 0));
+      sums[key] += Math.max(0, Math.min(1, goodCount / target));
+    }
+  }
+
+  const total = Math.max(1, refs.length);
+  const stages = {};
+
+  for (let i = 1; i <= 10; i += 1) {
+    const key = String(i);
+    stages[key] = Math.round(((sums[key] / total) * 1000)) / 10;
+  }
+
+  return {
+    date: _hifzTrendTodayKey(),
+    stages
+  };
+}
+
+function recordHifzStageTrendSnapshot({ force = false } = {}){
+  const snap = buildHifzStageTrendSnapshot();
+  if (!snap) return null;
+
+  const hist = loadHifzStageTrendHistory();
+  const idx = hist.findIndex((row) => row.date === snap.date);
+
+  if (idx >= 0) {
+    const same =
+      JSON.stringify(_normalizeHifzTrendStages(hist[idx].stages || {})) ===
+      JSON.stringify(_normalizeHifzTrendStages(snap.stages || {}));
+
+    if (same && !force) {
+      return hist[idx];
+    }
+
+    hist[idx] = {
+      date: snap.date,
+      stages: _normalizeHifzTrendStages(snap.stages || {})
+    };
+  } else {
+    hist.push({
+      date: snap.date,
+      stages: _normalizeHifzTrendStages(snap.stages || {})
+    });
+  }
+
+  saveHifzStageTrendHistory(hist);
+  return snap;
+}
+
+function getHifzStageTrendSeries(days = null){
+  const today = _hifzTrendTodayKey();
+  const live = buildHifzStageTrendSnapshot();
+  const history = loadHifzStageTrendHistory();
+
+  if (live) {
+    const idx = history.findIndex((row) => row.date === live.date);
+    if (idx >= 0) history[idx] = live;
+    else history.push(live);
+  }
+
+  history.sort((a, b) => String(a.date).localeCompare(String(b.date)));
+
+  const countDays = _getHifzTrendAutoDays(days, history.length || (live ? 1 : 0));
+  const byDate = new Map(history.map((row) => [row.date, _normalizeHifzTrendStages(row.stages || {})]));
+  const fallbackStages =
+    live?.stages ||
+    (history.length ? history[history.length - 1].stages : null) ||
+    _normalizeHifzTrendStages({});
+
+  let carry = _normalizeHifzTrendStages(fallbackStages);
+  const out = [];
+
+  for (let i = countDays - 1; i >= 0; i -= 1) {
+    const date = _hifzTrendShiftIso(today, -i);
+    if (byDate.has(date)) {
+      carry = _normalizeHifzTrendStages(byDate.get(date));
+    }
+
+    out.push({
+      date,
+      label: _hifzTrendLabel(date),
+      stages: _normalizeHifzTrendStages(carry),
+      isReal: byDate.has(date)
+    });
+  }
+
+  return out;
+}
+
+function getHifzStageTrendColor(stage){
+  const palette = {
+    "1":  "rgba(var(--rgb-ok),0.96)",
+    "2":  "rgba(var(--rgb-ok),0.72)",
+    "3":  "rgba(var(--rgb-accent),0.96)",
+    "4":  "rgba(var(--rgb-accent),0.72)",
+    "5":  "rgba(var(--rgb-note),0.94)",
+    "6":  "rgba(var(--rgb-note),0.72)",
+    "7":  "rgba(var(--rgb-warn),0.95)",
+    "8":  "rgba(var(--rgb-warn),0.72)",
+    "9":  "rgba(var(--rgb-white),0.86)",
+    "10": "rgba(var(--rgb-danger),0.92)"
+  };
+
+  return palette[String(stage)] || "rgba(var(--rgb-accent),0.78)";
+}
+
+function buildHifzStageTrendHtml(){
+  const series = getHifzStageTrendSeries();
+  if (!series.length) return "";
+
+  const stages = Array.from({ length: 10 }, (_, i) => String(i + 1));
+  const latest = series[series.length - 1] || series[0];
+
+  const width = 1000;
+  const height = 258;
+  const padL = 42;
+  const padR = 18;
+  const padT = 16;
+  const padB = 30;
+
+  const plotW = width - padL - padR;
+  const plotH = height - padT - padB;
+
+  const xAt = (idx) => {
+    if (series.length <= 1) return padL + (plotW * 0.5);
+    return padL + ((idx / (series.length - 1)) * plotW);
+  };
+
+  const yAt = (pct) => {
+    const safe = Math.max(0, Math.min(100, Number(pct) || 0));
+    return padT + (((100 - safe) / 100) * plotH);
+  };
+
+  const yTicks = [100, 75, 50, 25, 0];
+
+  const gridHtml = yTicks.map((pct) => {
+    const y = yAt(pct).toFixed(2);
+    return `
+      <line class="hifzStageTrendGridLine" x1="${padL}" y1="${y}" x2="${width - padR}" y2="${y}"></line>
+      <text class="hifzStageTrendAxisText" x="${padL - 8}" y="${y}" text-anchor="end">${pct}%</text>
+    `;
+  }).join("");
+
+const labelStep = _getHifzTrendLabelStep(series.length);
+
+const xLabelsHtml = series.map((row, idx) => {
+  const show = idx === 0 || idx === series.length - 1 || idx % labelStep === 0;
+  if (!show) return "";
+
+  const x = xAt(idx).toFixed(2);
+  return `<text class="hifzStageTrendDateText" x="${x}" y="${height - 8}" text-anchor="middle">${row.label}</text>`;
+}).join("");
+
+  const smoothTrendValues = (vals) => {
+    if (!Array.isArray(vals) || vals.length <= 2) return Array.isArray(vals) ? vals.slice() : [];
+
+    const out = vals.map((v) => Number(v) || 0);
+
+    for (let i = 0; i < vals.length; i += 1) {
+      const prev2 = Number(vals[i - 2] ?? vals[i - 1] ?? vals[i]) || 0;
+      const prev1 = Number(vals[i - 1] ?? vals[i]) || 0;
+      const cur   = Number(vals[i]) || 0;
+      const next1 = Number(vals[i + 1] ?? vals[i]) || 0;
+      const next2 = Number(vals[i + 2] ?? vals[i + 1] ?? vals[i]) || 0;
+
+      out[i] = (
+        prev2 * 1 +
+        prev1 * 2 +
+        cur   * 4 +
+        next1 * 2 +
+        next2 * 1
+      ) / 10;
+    }
+
+    out[0] = Number(vals[0]) || 0;
+    out[vals.length - 1] = Number(vals[vals.length - 1]) || 0;
+
+    return out;
+  };
+
+  const linesHtml = stages
+    .slice()
+    .reverse()
+    .map((stage) => {
+      const color = getHifzStageTrendColor(stage);
+      const rawVals = series.map((row) => Number(row?.stages?.[stage] || 0));
+      const smoothVals = smoothTrendValues(rawVals);
+
+      const points = smoothVals.map((pct, idx) => {
+        const x = xAt(idx).toFixed(2);
+        const y = yAt(pct).toFixed(2);
+        return `${x},${y}`;
+      }).join(" ");
+
+      const lastX = xAt(series.length - 1).toFixed(2);
+      const lastY = yAt(smoothVals[smoothVals.length - 1] || 0).toFixed(2);
+
+      return `
+        <polyline class="hifzStageTrendLine" style="color:${color}" points="${points}"></polyline>
+        <circle class="hifzStageTrendDot" style="color:${color}" cx="${lastX}" cy="${lastY}" r="3.4"></circle>
+      `;
+    })
+    .join("");
+
+  const legendHtml = stages.map((stage) => {
+    const color = getHifzStageTrendColor(stage);
+    const pctNum = Math.max(0, Math.min(100, Number(latest?.stages?.[stage] || 0)));
+    const pct = pctNum.toFixed(1);
+
+    return `
+      <div
+        class="hifzStageTrendLegendItem"
+        style="--trend-color:${color}; --legend-progress:${pctNum}%;"
+      >
+        <span class="hifzStageTrendLegendFill" aria-hidden="true"></span>
+
+        <span class="hifzStageTrendLegendContent">
+          <span class="hifzStageTrendLegendSwatch" aria-hidden="true"></span>
+          <span class="hifzStageTrendLegendStage">Stage ${stage}</span>
+          <span class="hifzStageTrendLegendPct">${pct}%</span>
+        </span>
+      </div>
+    `;
+  }).join("");
+
+  const hifzScoreText = formatHifzScore(getHifzScoreValue());
+
+  return `
+    <div class="ayahCard hifzStageTrendCard">
+      <div
+        class="hifzStageTrendHeader"
+        style="
+          display:grid;
+          grid-template-columns:1fr auto 1fr;
+          align-items:center;
+          column-gap:calc(var(--stage-w) * 0.010);
+          min-height:calc(var(--stage-h) * 0.022);
+        "
+      >
+        <div></div>
+        <div class="hifzStageTrendTitle">Stage Progress</div>
+        <div
+          style="
+            justify-self:end;
+            display:inline-flex;
+            align-items:center;
+            gap:calc(var(--stage-w) * 0.0042);
+            font-family:var(--font-meta);
+            font-size:calc(var(--ayah-font-meta) * 0.76);
+            font-weight:700;
+            line-height:1;
+            color:var(--color-text);
+            white-space:nowrap;
+          "
+        >
+          <span style="opacity:0.72;">Hifzscore</span>
+          <span
+            class="hifzHelpInfo"
+            data-hifz-help="hifzscore-stage-progress"
+            data-hifz-help-title="Hifzscore"
+            data-hifz-help-text="this is a score for memorizing the quran in all 10 stages"
+            aria-label="this is a score for memorizing the quran in all 10 stages">?</span>
+          <span style="font-size:calc(var(--ayah-font-meta) * 0.86);">${hifzScoreText}</span>
+        </div>
+      </div>
+
+      <div class="hifzStageTrendFrame">
+        <svg class="hifzStageTrendSvg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-label="Stage progress over days">
+          ${gridHtml}
+          ${linesHtml}
+          ${xLabelsHtml}
+        </svg>
+      </div>
+
+      <div class="hifzStageTrendLegend">
+        ${legendHtml}
+      </div>
+    </div>
+  `;
+}
+
 function saveHifzRepeatTarget(v){
   const n = Math.max(1, Math.min(100, Number(v) || 5));
   __hifzRepeatTargetCache = n;
@@ -8946,8 +9555,16 @@ function saveHifzRepeatTarget(v){
   try{
     localStorage.setItem(LS_HIFZ_REPEAT_TARGET, String(n));
   }catch{}
+
+  try { recordHifzStageTrendSnapshot({ force: true }); } catch {}
+  try { window.__refreshAccountHifzScore?.(); } catch(e) {}
   try { window.__accountScheduleSync?.(); } catch(e) {}
 }
+
+dataPromise.then(() => {
+  try { recordHifzStageTrendSnapshot(); } catch {}
+  try { window.__refreshAccountHifzScore?.(); } catch(e) {}
+});
 
 window.addEventListener("storage", (e) => {
   if (!e) return;
@@ -8962,6 +9579,12 @@ window.addEventListener("storage", (e) => {
 
   if (e.key === LS_HIFZ_RESULTS || e.key === LS_HIFZ_REPEAT_TARGET) {
     __resetHifzLocalCache();
+  }
+
+  if (e.key === LS_HIFZ_STAGE_TREND) {
+    try {
+      renderCurrent(currentRef);
+    } catch {}
   }
 });
 
@@ -9001,6 +9624,94 @@ function getHifzProgressRatioForRef(ref, stage){
   return Math.max(0, Math.min(1, count / target));
 }
 
+const HIFZ_SCORE_MAX = 1000000000;
+const HIFZ_SCORE_STAGE_MAX = HIFZ_SCORE_MAX / 10;
+
+let __hifzQuranWordCountCache = null;
+const __hifzAyahWordCountCache = new Map();
+
+function getHifzAyahWordCount(ref){
+  const safeRef = String(ref || "");
+  if (__hifzAyahWordCountCache.has(safeRef)) {
+    return __hifzAyahWordCountCache.get(safeRef) || 0;
+  }
+
+  let count = 0;
+  try{
+    const words = (typeof getWords === "function") ? (getWords(safeRef) || []) : [];
+    count = words.filter((w) => String(w?.audioUrl || "").trim()).length;
+  }catch{
+    count = 0;
+  }
+
+  __hifzAyahWordCountCache.set(safeRef, count);
+  return count;
+}
+
+function getHifzQuranWordCount(){
+  if (Number.isFinite(__hifzQuranWordCountCache) && __hifzQuranWordCountCache > 0) {
+    return __hifzQuranWordCountCache;
+  }
+
+  let total = 0;
+  try{
+    const refs = (typeof getAllRefs === "function") ? (getAllRefs() || []) : [];
+    for (const ref of refs) {
+      total += getHifzAyahWordCount(ref);
+    }
+  }catch{
+    total = 0;
+  }
+
+  __hifzQuranWordCountCache = Math.max(1, total);
+  return __hifzQuranWordCountCache;
+}
+
+function getHifzScoreValue(){
+  const refs = (typeof getAllRefs === "function") ? (getAllRefs() || []) : [];
+  if (!refs.length) return 0;
+
+  const totalWords = getHifzQuranWordCount();
+  const pointsPerWordPerStage = HIFZ_SCORE_STAGE_MAX / Math.max(1, totalWords);
+
+  let score = 0;
+
+  for (const ref of refs) {
+    const wordCount = getHifzAyahWordCount(ref);
+    if (!wordCount) continue;
+
+    for (let stage = 1; stage <= 10; stage += 1) {
+      const ratio = Number(getHifzProgressRatioForRef(ref, String(stage)) || 0);
+      if (ratio <= 0) continue;
+      score += wordCount * ratio * pointsPerWordPerStage;
+    }
+  }
+
+  return Math.max(0, Math.min(HIFZ_SCORE_MAX, Math.round(score)));
+}
+
+function formatHifzScore(n){
+  return new Intl.NumberFormat("en-US").format(Math.max(0, Math.round(Number(n) || 0)));
+}
+
+function refreshAccountHifzScoreUi(){
+  const el = document.getElementById("acctHifzScoreValue");
+  if (!el) return;
+
+  let inOk = false;
+  try { inOk = !!__isLoggedIn?.(); } catch {}
+
+  if (!inOk) {
+    el.textContent = `0/${HIFZ_SCORE_MAX}`;
+    return;
+  }
+
+  const scoreNow = Math.max(0, Math.round(Number(getHifzScoreValue()) || 0));
+  el.textContent = `${scoreNow}/${HIFZ_SCORE_MAX}`;
+}
+
+window.__refreshAccountHifzScore = refreshAccountHifzScoreUi;
+
 function setHifzResultForRef(ref, stage, result){
   const r = String(ref || "");
   const s = String(stage || hifzStageValue || "1");
@@ -9010,18 +9721,24 @@ function setHifzResultForRef(ref, stage, result){
   if (!(val === "good" || val === "bad")) return;
 
   const map = loadHifzResults();
-  const row = (map[r] && typeof map[r] === "object") ? map[r] : {};
-  const prev = (row[s] && typeof row[s] === "object") ? row[s] : {
-    state: "neutral",
-    goodCount: 0
-  };
+  const row = (map[r] && typeof map[r] === "object") ? { ...map[r] } : {};
+  const target = loadHifzRepeatTarget();
 
   if (val === "good") {
-    const target = loadHifzRepeatTarget();
-    row[s] = {
-      state: "good",
-      goodCount: Math.min(target, (Number(prev.goodCount) || 0) + 1)
-    };
+    const stageNum = Math.max(1, Math.min(10, Number(s) || 1));
+
+    for (let i = 1; i <= stageNum; i += 1) {
+      const stageId = String(i);
+      const prev = (row[stageId] && typeof row[stageId] === "object") ? row[stageId] : {
+        state: "neutral",
+        goodCount: 0
+      };
+
+      row[stageId] = {
+        state: "good",
+        goodCount: Math.min(target, (Number(prev.goodCount) || 0) + 1)
+      };
+    }
   } else {
     row[s] = {
       state: "bad",
@@ -9360,6 +10077,229 @@ function setHifzAyahRevealed(ref, on = true){
   const r = String(ref || "");
   if (!/^\d+:\d+$/.test(r)) return;
   __hifzRevealMap[r] = !!on;
+}
+
+const __hifzTrainMaskRevealMap = Object.create(null);
+const __hifzTrainMaskHoverTimers = Object.create(null);
+let __hifzTrainMaskOn = false;
+let __hifzTrainMaskPendingRateRef = "";
+
+function isValidHifzTrainRef(ref){
+  return /^\d+:\d+$/.test(String(ref || "").trim());
+}
+
+function clearHifzTrainMaskHoverTimer(ref){
+  const r = String(ref || "").trim();
+  const t = __hifzTrainMaskHoverTimers[r];
+  if (t) {
+    clearTimeout(t);
+    delete __hifzTrainMaskHoverTimers[r];
+  }
+}
+
+function clearAllHifzTrainMaskHoverTimers(){
+  Object.keys(__hifzTrainMaskHoverTimers).forEach((ref) => {
+    clearHifzTrainMaskHoverTimer(ref);
+  });
+}
+
+function clearHifzTrainMaskReveals(){
+  Object.keys(__hifzTrainMaskRevealMap).forEach((ref) => {
+    delete __hifzTrainMaskRevealMap[ref];
+  });
+}
+
+function getHifzTrainMaskPendingRateRef(){
+  return String(__hifzTrainMaskPendingRateRef || "");
+}
+
+function setHifzTrainMaskPendingRateRef(ref = ""){
+  const r = String(ref || "").trim();
+  __hifzTrainMaskPendingRateRef = isValidHifzTrainRef(r) ? r : "";
+}
+
+function isHifzTrainMaskOn(){
+  return !!__hifzTrainMaskOn;
+}
+
+function isHifzTrainMaskRevealed(ref){
+  return !!__hifzTrainMaskRevealMap[String(ref || "").trim()];
+}
+
+function isHifzTrainMaskRatePending(ref){
+  return getHifzTrainMaskPendingRateRef() === String(ref || "").trim();
+}
+
+function buildHifzTrainMaskRateInnerHtml(){
+  return `
+    <span class="mTrainRateSplit" aria-hidden="true">
+      <span class="mTrainRateHalf is-bad" data-rate="bad">1</span>
+      <span class="mTrainRateHalf is-good" data-rate="good">3</span>
+    </span>
+  `;
+}
+
+function getActiveHifzTrainMaskView(){
+  const mViews = Array.from(document.querySelectorAll(".mView"));
+  return mViews.find((el) => el.offsetParent !== null) || null;
+}
+
+function focusHifzTrainMaskRefInView(view, ref, { updateUrl = false } = {}){
+  const host = view && typeof view.querySelectorAll === "function" ? view : getActiveHifzTrainMaskView();
+  const r = String(ref || "").trim();
+  if (!host || !isValidHifzTrainRef(r)) return;
+
+  host.querySelectorAll(".mNo.is-focus").forEach((el) => el.classList.remove("is-focus"));
+  const btn = host.querySelector(`.mNo[data-ref="${CSS.escape(r)}"]`);
+  if (btn) btn.classList.add("is-focus");
+
+  currentRef = r;
+  if (updateUrl) setRefToHash(r);
+}
+
+function syncHifzTrainMaskDom(root = document){
+  const host = root && typeof root.querySelectorAll === "function" ? root : document;
+  const firstChunk = host.querySelector('.mChunk[data-train-first="true"][data-ref]');
+  const firstRef = String(firstChunk?.getAttribute("data-ref") || "");
+  const stageNow = String(hifzStageValue || "1");
+
+  host.querySelectorAll(".mChunk[data-ref]").forEach((chunk) => {
+    const ref = String(chunk.getAttribute("data-ref") || "");
+    if (!isValidHifzTrainRef(ref)) return;
+
+    const hidden = isHifzTrainMaskOn() && !isHifzTrainMaskRevealed(ref);
+    const firstHint = hidden && ref === firstRef;
+
+    chunk.classList.toggle("is-train-hidden", hidden);
+    chunk.classList.toggle("is-train-first-hint", firstHint);
+
+    const noBtn = chunk.querySelector(".mNo[data-ref]");
+    if (!noBtn) return;
+
+    const ratio = Math.max(0, Math.min(1, Number(getHifzProgressRatioForRef(ref, stageNow) || 0)));
+    const result = String(getHifzResultForRef(ref, stageNow) || "");
+
+    noBtn.style.setProperty("--hifz-ring", String(ratio));
+    noBtn.classList.remove("is-hifz-bad", "is-hifz-progress", "is-hifz-mastered");
+
+    if (result === "bad") {
+      noBtn.classList.add("is-hifz-bad");
+    } else if (ratio >= 1) {
+      noBtn.classList.add("is-hifz-mastered");
+    } else if (ratio > 0) {
+      noBtn.classList.add("is-hifz-progress");
+    }
+
+    const pendingOpen = isHifzTrainMaskOn() && !hidden && isHifzTrainMaskRatePending(ref);
+    noBtn.classList.toggle("is-train-rate-open", pendingOpen);
+    noBtn.setAttribute("data-train-state", pendingOpen ? "rating" : (hidden ? "hidden" : "normal"));
+
+    if (pendingOpen) {
+      if (!noBtn.querySelector(".mTrainRateSplit")) {
+        noBtn.innerHTML = buildHifzTrainMaskRateInnerHtml();
+      }
+      noBtn.setAttribute("title", "rate with 1 bad and 3 good how good you remembered it");
+      noBtn.setAttribute("aria-label", `Rate ${ref} with 1 bad and 3 good`);
+    } else {
+      const no = String(noBtn.getAttribute("data-ayah-no") || "");
+      if (noBtn.querySelector(".mTrainRateSplit")) {
+        noBtn.textContent = no;
+      }
+      noBtn.setAttribute("title", firstHint ? "click/press space or hover to reveal ayah" : `Play ${ref}`);
+      noBtn.setAttribute("aria-label", hidden ? `Reveal ${ref}` : `Play ${ref}`);
+    }
+  });
+}
+
+function setHifzTrainMaskOn(on = true){
+  const next = !!on;
+
+  clearAllHifzTrainMaskHoverTimers();
+  setHifzTrainMaskPendingRateRef("");
+
+  if (next) {
+    clearHifzTrainMaskReveals(); // ✅ immer wieder von vorne
+  }
+
+  __hifzTrainMaskOn = next;
+}
+
+function revealHifzTrainMaskRef(ref){
+  const r = String(ref || "").trim();
+  if (!isValidHifzTrainRef(r)) return;
+  if (!isHifzTrainMaskOn()) return;
+
+  clearHifzTrainMaskHoverTimer(r);
+  __hifzTrainMaskRevealMap[r] = true;
+  setHifzTrainMaskPendingRateRef(r);
+
+  syncHifzTrainMaskDom(getActiveHifzTrainMaskView() || document);
+}
+
+function coverHifzTrainMaskRef(ref){
+  const r = String(ref || "").trim();
+  if (!isValidHifzTrainRef(r)) return;
+  if (!isHifzTrainMaskOn()) return;
+  if (!isHifzTrainMaskRevealed(r)) return;
+
+  clearHifzTrainMaskHoverTimer(r);
+  delete __hifzTrainMaskRevealMap[r];
+
+  if (isHifzTrainMaskRatePending(r)) {
+    setHifzTrainMaskPendingRateRef("");
+  }
+
+  syncHifzTrainMaskDom(getActiveHifzTrainMaskView() || document);
+}
+
+function scheduleHifzTrainMaskReveal(ref, delay = 1000){
+  const r = String(ref || "").trim();
+  if (!isValidHifzTrainRef(r)) return;
+  if (!isHifzTrainMaskOn()) return;
+  if (isHifzTrainMaskRevealed(r)) return;
+
+  clearHifzTrainMaskHoverTimer(r);
+
+  __hifzTrainMaskHoverTimers[r] = setTimeout(() => {
+    delete __hifzTrainMaskHoverTimers[r];
+    revealHifzTrainMaskRef(r);
+  }, Math.max(0, Number(delay) || 0));
+}
+
+function revealCurrentOrFirstHiddenTrainAyah(view){
+  const host = view && typeof view.querySelector === "function" ? view : getActiveHifzTrainMaskView();
+  if (!host) return false;
+
+  const safeCurrent = isValidHifzTrainRef(currentRef) ? String(currentRef) : "";
+  const currentHidden = safeCurrent
+    ? host.querySelector(`.mChunk.is-train-hidden[data-ref="${CSS.escape(safeCurrent)}"]`)
+    : null;
+
+  const fallbackHidden = host.querySelector(".mChunk.is-train-hidden[data-ref]");
+  const chunk = currentHidden || fallbackHidden;
+  if (!chunk) return false;
+
+  const r = String(chunk.getAttribute("data-ref") || "");
+  if (!isValidHifzTrainRef(r)) return false;
+
+  revealHifzTrainMaskRef(r);
+  focusHifzTrainMaskRefInView(host, r, { updateUrl: true });
+  return true;
+}
+
+function rateHifzTrainMaskRef(ref, result){
+  const r = String(ref || "").trim();
+  const val = String(result || "").trim().toLowerCase();
+  if (!isValidHifzTrainRef(r)) return;
+  if (!(val === "good" || val === "bad")) return;
+
+  setHifzResultForRef(r, String(hifzStageValue || "1"), val);
+
+  if (isHifzTrainMaskRatePending(r)) {
+    setHifzTrainMaskPendingRateRef("");
+  }
+
+  clearHifzTrainMaskHoverTimer(r);
 }
 
 const __hifzWriteStateMap = Object.create(null);
@@ -10392,40 +11332,82 @@ const refs =
     ? refsInRange.filter((r) => r === String(currentRef || ""))
     : refsInRange;
 
-  const modeText = "Train";
+const modeText = "Train";
+const escTopBarAttr = (s) =>
+  String(s ?? "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  }[c]));
+const hifzStageInfoTitle = "Stage";
+const hifzStageInfoText = "Chooses the current hifz stage. Higher stages remove more help and expect stronger recall.";
+const hifzRepeatInfoTitle = "Right target";
+const hifzRepeatInfoText = "Sets how many correct recalls are needed before one ayah counts as learned in the current stage.";
+const hifzRangeInfoTitle = "Range";
+const hifzRangeInfoText = "Limits the tested ayahs inside the current surah. Example: 5-10.";
 
-  // ✅ Ayah-Mode = Test-Mode
+// ✅ Ayah-Mode = Test-Mode
 const topBarHtml = renderAll ? "" : `
   <div class="surahTopBar ayahTopBar hifzTestTopBar">
     <div class="surahTopFarLeft">
-      ${buildHifzStageDropdownHtml(hifzStageValue)}
-
-      <div class="hifzRepeatSelectWrap">
-        <select class="hifzRepeatSelect" id="hifzRepeatTargetTop" aria-label="How often repeated the ayah right to mark it as learned">
-          ${(() => {
-            const values = [
-              ...Array.from({ length: 100 }, (_, i) => i + 1),
-              ...Array.from({ length: 9 }, (_, i) => (i + 2) * 100),
-              ...Array.from({ length: 18 }, (_, i) => 1500 + (i * 500))
-            ];
-
-            return values.map((n) => {
-              const sel = n === loadHifzRepeatTarget() ? ' selected' : '';
-              return `<option value="${n}"${sel}>${n}x right</option>`;
-            }).join("");
-          })()}
-        </select>
-        <span class="hifzRepeatArrow" aria-hidden="true">▼</span>
+      <div class="hifzControlWithInfo">
+        <div class="hifzControlField">
+          ${buildHifzStageDropdownHtml(hifzStageValue)}
+          <span
+            class="hifzHelpInfo"
+            data-hifz-help="stage"
+            data-hifz-help-title="${escTopBarAttr(hifzStageInfoTitle)}"
+            data-hifz-help-text="${escTopBarAttr(hifzStageInfoText)}"
+            aria-label="${escTopBarAttr(hifzStageInfoText)}">?</span>
+        </div>
       </div>
 
-      <input
-        class="hifzRangeInput"
-        id="hifzRangeInputTopAyah"
-        type="text"
-        inputmode="text"
-        value="5-10"
-        placeholder="5-10"
-        aria-label="Ayah range to test">
+      <div class="hifzControlWithInfo">
+        <div class="hifzControlField hifzRepeatSelectWrap">
+          <select class="hifzRepeatSelect" id="hifzRepeatTargetTop" aria-label="How often repeated the ayah right to mark it as learned">
+            ${(() => {
+              const values = [
+                ...Array.from({ length: 100 }, (_, i) => i + 1),
+                ...Array.from({ length: 9 }, (_, i) => (i + 2) * 100),
+                ...Array.from({ length: 18 }, (_, i) => 1500 + (i * 500))
+              ];
+
+              return values.map((n) => {
+                const sel = n === loadHifzRepeatTarget() ? ' selected' : '';
+                return `<option value="${n}"${sel}>${n}x right</option>`;
+              }).join("");
+            })()}
+          </select>
+          <span class="hifzRepeatArrow" aria-hidden="true">▼</span>
+          <span
+            class="hifzHelpInfo"
+            data-hifz-help="repeat"
+            data-hifz-help-title="${escTopBarAttr(hifzRepeatInfoTitle)}"
+            data-hifz-help-text="${escTopBarAttr(hifzRepeatInfoText)}"
+            aria-label="${escTopBarAttr(hifzRepeatInfoText)}">?</span>
+        </div>
+      </div>
+
+      <div class="hifzControlWithInfo">
+        <div class="hifzControlField">
+          <input
+            class="hifzRangeInput"
+            id="hifzRangeInputTopAyah"
+            type="text"
+            inputmode="text"
+            value="5-10"
+            placeholder="5-10"
+            aria-label="Ayah range to test">
+          <span
+            class="hifzHelpInfo"
+            data-hifz-help="range"
+            data-hifz-help-title="${escTopBarAttr(hifzRangeInfoTitle)}"
+            data-hifz-help-text="${escTopBarAttr(hifzRangeInfoText)}"
+            aria-label="${escTopBarAttr(hifzRangeInfoText)}">?</span>
+        </div>
+      </div>
     </div>
 
     <div class="surahTopLeft">
@@ -10532,10 +11514,15 @@ view.innerHTML =
   topBarHtml +
   basmHtml +
   `<div class="allCardsMount"></div>` +
-  `<div class="hifzSurahSummaryMount"></div>`;
+  `<div class="hifzProgressBottomStack"><div class="hifzStageTrendMount"></div><div class="hifzSurahSummaryMount"></div></div>`;
 
 const mount = view.querySelector(".allCardsMount");
+const trendMount = view.querySelector(".hifzStageTrendMount");
 const surahSummaryMount = view.querySelector(".hifzSurahSummaryMount");
+
+if (trendMount) {
+  trendMount.innerHTML = buildHifzStageTrendHtml();
+}
 
 if (surahSummaryMount) {
   surahSummaryMount.innerHTML = buildHifzSurahSummaryHtml();
@@ -10676,7 +11663,8 @@ if (hifzStageSelectTop && !hifzStageSelectTop._bound) {
     hifzStageSelectTop.value = selected;
 
     if (hifzStageDropLabelTop) {
-      hifzStageDropLabelTop.textContent = meta.title;
+      hifzStageDropLabelTop.textContent = String(meta.title || "");
+      hifzStageDropLabelTop.setAttribute("aria-label", String(meta.title || ""));
     }
 
     if (hifzStageDropTop) {
@@ -10919,8 +11907,37 @@ if (mount && !mount._hifzUiBound) {
   const rerenderWithoutJump = (nextRef, { focusWrite = false, forceNow = false } = {}) => {
     const targetRef = String(nextRef || currentRef || "");
     const qv = mount.closest(".qView");
+    const pageEl = document.scrollingElement || document.documentElement;
+
+    const safeCurrentRef = String(currentRef || "");
+    const targetSel = /^\d+:\d+$/.test(targetRef)
+      ? `.ayahMainCard[data-ref="${CSS.escape(targetRef)}"]`
+      : "";
+    const currentSel = /^\d+:\d+$/.test(safeCurrentRef)
+      ? `.ayahMainCard[data-ref="${CSS.escape(safeCurrentRef)}"]`
+      : "";
+
+    const anchorRef =
+      (targetSel && mount.querySelector(targetSel) && targetRef) ||
+      (currentSel && mount.querySelector(currentSel) && safeCurrentRef) ||
+      "";
+
+    const anchorSel = anchorRef
+      ? `.ayahMainCard[data-ref="${CSS.escape(anchorRef)}"]`
+      : "";
+
+    const anchorBefore = anchorSel ? mount.querySelector(anchorSel) : null;
+    const qvRectBefore = qv ? qv.getBoundingClientRect() : null;
+
     const prevTop = qv ? qv.scrollTop : 0;
     const prevLeft = qv ? qv.scrollLeft : 0;
+    const prevPageTop = pageEl ? pageEl.scrollTop : 0;
+    const prevPageLeft = pageEl ? pageEl.scrollLeft : 0;
+
+    const prevAnchorTop =
+      qv && qvRectBefore && anchorBefore
+        ? (anchorBefore.getBoundingClientRect().top - qvRectBefore.top)
+        : null;
 
     if (forceNow) {
       try {
@@ -10941,15 +11958,33 @@ if (mount && !mount._hifzUiBound) {
     }
 
     requestAnimationFrame(() => {
-      const qvNow = document.querySelector(".qView");
-      if (qvNow) {
-        qvNow.scrollTop = prevTop;
-        qvNow.scrollLeft = prevLeft;
-      }
+      requestAnimationFrame(() => {
+        const qvNow = document.querySelector(".qView");
+        const pageNow = document.scrollingElement || document.documentElement;
 
-      if (focusWrite) {
-        focusWriteInputByRef(targetRef);
-      }
+        if (pageNow) {
+          pageNow.scrollTop = prevPageTop;
+          pageNow.scrollLeft = prevPageLeft;
+        }
+
+        if (qvNow) {
+          qvNow.scrollTop = prevTop;
+          qvNow.scrollLeft = prevLeft;
+
+          if (prevAnchorTop != null && anchorSel) {
+            const anchorNow = qvNow.querySelector(anchorSel) || document.querySelector(anchorSel);
+            if (anchorNow) {
+              const qvRectNow = qvNow.getBoundingClientRect();
+              const nowAnchorTop = anchorNow.getBoundingClientRect().top - qvRectNow.top;
+              qvNow.scrollTop += (nowAnchorTop - prevAnchorTop);
+            }
+          }
+        }
+
+        if (focusWrite) {
+          focusWriteInputByRef(targetRef);
+        }
+      });
     });
   };
 
@@ -11107,7 +12142,7 @@ const handleWriteRawInput = (input, rawValue) => {
       if (!/^\d+:\d+$/.test(ref)) return;
 
       setHifzAyahRevealed(ref, true);
-      rerenderWithoutJump(ref);
+      rerenderWithoutJump(ref, { forceNow: true });
       return;
     }
 
@@ -11134,17 +12169,25 @@ const handleWriteRawInput = (input, rawValue) => {
     }
 
     const goNext = () => {
+      const focusWriteNext = ["8", "9", "10"].includes(String(hifzStageValue || "1"));
+
       if (isHifzSingleFocusStage(String(hifzStageValue || "1"))) {
         const nextRef = getNextHifzFocusRef(ref);
         if (nextRef && nextRef !== ref) {
           setHifzAyahRevealed(nextRef, false);
-          renderCurrent(nextRef);
+          rerenderWithoutJump(nextRef, {
+            focusWrite: focusWriteNext,
+            forceNow: true
+          });
           return;
         }
       }
 
       setHifzAyahRevealed(ref, false);
-      renderCurrent(ref);
+      rerenderWithoutJump(ref, {
+        focusWrite: focusWriteNext,
+        forceNow: true
+      });
     };
 
     setTimeout(goNext, 340);
@@ -11985,7 +13028,23 @@ function renderMushaf(ref) {
 
   const toArDigits = (n) => String(n).replace(/\d/g, (d) => "٠١٢٣٤٥٦٧٨٩"[d]);
 
-  const modeText = "Test";
+const modeText = "Test";
+const trainModeOn = isHifzTrainMaskOn();
+const escTopBarAttr = (s) =>
+  String(s ?? "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  }[c]));
+const hifzStageInfoTitle = "Stage";
+const hifzStageInfoText = "Chooses the current hifz stage. Higher stages remove more help and expect stronger recall.";
+const hifzRepeatInfoTitle = "Right target";
+const hifzRepeatInfoText = "How many correct recalls this ayah needs before it counts as learned for the current stage.";
+const hifzRangeInfoTitle = "Range";
+const hifzRangeInfoText = "Limits the trained ayahs inside the current surah. Example: 5-10.";
+const trainModeInfoTitle = "Hides the ayahs in the active range behind a cover until you reveal them. Click, hover, or press Space to reveal. Press Ctrl + Space to cover the current ayah again. Then rate with 1 for bad or 3 for good. Press Escape to leave trainmode.";
 
 // ✅ Mushaf: Favoriten-Markierung muss die AKTIVE Favoritenseite nutzen (actual ODER preset)
 let favSet = new Set((getActiveFavRefs?.() || []).map(String));
@@ -12000,31 +13059,62 @@ const topBarHtml = renderAll ? "" : `
       </button>
 
       <div class="hifzTopControls">
-        ${buildHifzStageDropdownHtml(hifzStageValue)}
+        <div class="hifzControlWithInfo">
+          <div class="hifzControlField">
+            ${buildHifzStageDropdownHtml(hifzStageValue)}
+            <span
+              class="hifzHelpInfo"
+              data-hifz-help="stage"
+              data-hifz-help-title="${escTopBarAttr(hifzStageInfoTitle)}"
+              data-hifz-help-text="${escTopBarAttr(hifzStageInfoText)}"
+              aria-label="${escTopBarAttr(hifzStageInfoText)}">?</span>
+          </div>
+        </div>
 
-        <select class="hifzRepeatSelect" id="hifzRepeatTargetTop" aria-label="How often repeated the ayah right to mark it as learned">
-          ${(() => {
-            const values = [
-              ...Array.from({ length: 100 }, (_, i) => i + 1),
-              ...Array.from({ length: 9 }, (_, i) => (i + 2) * 100),
-              ...Array.from({ length: 18 }, (_, i) => 1500 + (i * 500))
-            ];
+        <div class="hifzControlWithInfo">
+          <div class="hifzControlField hifzRepeatSelectWrap">
+            <select class="hifzRepeatSelect" id="hifzRepeatTargetTop" aria-label="How often repeated the ayah right to mark it as learned">
+              ${(() => {
+                const values = [
+                  ...Array.from({ length: 100 }, (_, i) => i + 1),
+                  ...Array.from({ length: 9 }, (_, i) => (i + 2) * 100),
+                  ...Array.from({ length: 18 }, (_, i) => 1500 + (i * 500))
+                ];
 
-            return values.map((n) => {
-              const sel = n === loadHifzRepeatTarget() ? ' selected' : '';
-              return `<option value="${n}"${sel}>${n}x right</option>`;
-            }).join("");
-          })()}
-        </select>
+                return values.map((n) => {
+                  const sel = n === loadHifzRepeatTarget() ? ' selected' : '';
+                  return `<option value="${n}"${sel}>${n}x right</option>`;
+                }).join("");
+              })()}
+            </select>
+            <span class="hifzRepeatArrow" aria-hidden="true">▼</span>
+            <span
+              class="hifzHelpInfo"
+              data-hifz-help="repeat"
+              data-hifz-help-title="${escTopBarAttr(hifzRepeatInfoTitle)}"
+              data-hifz-help-text="${escTopBarAttr(hifzRepeatInfoText)}"
+              aria-label="${escTopBarAttr(hifzRepeatInfoText)}">?</span>
+          </div>
+        </div>
 
-        <input
-          class="hifzRangeInput"
-          id="hifzRangeInputTop"
-          type="text"
-          inputmode="text"
-          value="5-10"
-          placeholder="5-10"
-          aria-label="Ayah range to train">
+        <div class="hifzControlWithInfo">
+          <div class="hifzControlField">
+            <input
+              class="hifzRangeInput"
+              id="hifzRangeInputTop"
+              type="text"
+              inputmode="text"
+              value="5-10"
+              placeholder="5-10"
+              aria-label="Ayah range to train">
+            <span
+              class="hifzHelpInfo"
+              data-hifz-help="range"
+              data-hifz-help-title="${escTopBarAttr(hifzRangeInfoTitle)}"
+              data-hifz-help-text="${escTopBarAttr(hifzRangeInfoText)}"
+              aria-label="${escTopBarAttr(hifzRangeInfoText)}">?</span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -12037,6 +13127,20 @@ const topBarHtml = renderAll ? "" : `
     <div class="surahTopRight">
       ${buildHifzBadRefsTopbarHtml()}
 
+      <button
+        class="hifzTrainModeBtn${trainModeOn ? " is-on" : ""}"
+        type="button"
+        data-action="toggleTrainModeMask"
+        aria-pressed="${trainModeOn ? "true" : "false"}">
+        <span class="hifzTrainModeBtnLabel">TRAINMODE</span>
+        <span
+          class="hifzTrainModeBtnInfo hifzHelpInfo"
+          data-hifz-help="trainmode"
+          data-hifz-help-title="Trainmode"
+          data-hifz-help-text="${escTopBarAttr(trainModeInfoTitle)}"
+          aria-hidden="true">?</span>
+      </button>
+
       <button class="surahModeBtn" type="button" data-action="toggleView" title="Switch to test mode">
         <span class="modeText">${modeText}</span>
         <span class="modeArrow">→</span>
@@ -12047,21 +13151,33 @@ const topBarHtml = renderAll ? "" : `
 
 const centerTitleHtml = `
   <div class="mCenter">
-    <div class="mSurahName" dir="rtl" lang="ar">سورة ${sm?.nameAr ?? ""}</div>
+    <div class="mMushafHeader">
+      <div class="mSurahName" dir="rtl" lang="ar">سورة ${sm?.nameAr ?? ""}</div>
+      ${
+        (!renderAll && Number(fromAyah) <= 1 && Number(toAyah) >= 1 && Number(surah) !== 1 && Number(surah) !== 9)
+          ? `<div class="mBasm" dir="rtl" lang="ar">بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</div>`
+          : ``
+      }
+    </div>
   </div>
 `;
 
- view.innerHTML = `
-   ${topBarHtml}
-   ${renderAll ? "" : centerTitleHtml}
-   <div class="mBody">
-     <div class="mFlow" dir="rtl" lang="ar"></div>
-   </div>
-   <div class="hifzSurahSummaryMount"></div>
- `;
+view.innerHTML = `
+  ${topBarHtml}
+  ${renderAll ? "" : centerTitleHtml}
+  <div class="mBody">
+    <div class="mFlow" dir="rtl" lang="ar"></div>
+  </div>
+  <div class="hifzProgressBottomStack"><div class="hifzStageTrendMount"></div><div class="hifzSurahSummaryMount"></div></div>
+`;
 
 const flow = view.querySelector(".mFlow");
+const trendMount = view.querySelector(".hifzStageTrendMount");
 const surahSummaryMount = view.querySelector(".hifzSurahSummaryMount");
+
+if (trendMount) {
+  trendMount.innerHTML = buildHifzStageTrendHtml();
+}
 
 const escSummary = (s) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({
@@ -12475,12 +13591,13 @@ function renderChunk() {
 `;
 
       // ✅ Arabischer Surah-Titel + Basmallah im Mushaf-Flow
+      // Basmallah NUR wenn Ayah 1 dieser Sura in der aktuellen Range wirklich drin ist
       html += `
   <div class="mCenter">
     <div class="mMushafHeader">
       <div class="mSurahName" dir="rtl" lang="ar">سورة ${sm2?.nameAr ?? ""}</div>
       ${
-        (lastSurah !== 1 && lastSurah !== 9)
+        (lastSurah !== 1 && lastSurah !== 9 && Number(a?.ayah || 0) === 1)
           ? `<div class="mBasm" dir="rtl" lang="ar">بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</div>`
           : ``
       }
@@ -12502,6 +13619,14 @@ const hifzStageNow = String(hifzStageValue || "1");
 const hifzResult = String(getHifzResultForRef(a.ref, hifzStageNow) || "");
 const hifzRatio = Number(getHifzProgressRatioForRef(a.ref, hifzStageNow) || 0);
 const hifzRing = Math.max(0, Math.min(1, hifzRatio));
+const trainMaskHidden = isHifzTrainMaskOn() && !isHifzTrainMaskRevealed(a.ref);
+const trainRateOpen = isHifzTrainMaskOn() && !trainMaskHidden && isHifzTrainMaskRatePending(a.ref);
+const trainHintTitle = trainRateOpen
+  ? "rate with 1 bad and 3 good how good you remembered it"
+  : ((i === 0 && trainMaskHidden) ? "click/press space or hover to reveal ayah" : `Play ${a.ref}`);
+const trainAriaLabel = trainRateOpen
+  ? `Rate ${a.ref} with 1 bad and 3 good`
+  : (trainMaskHidden ? `Reveal ${a.ref}` : `Play ${a.ref}`);
 const hifzNoClass =
   hifzResult === "bad"
     ? " is-hifz-bad"
@@ -12512,19 +13637,24 @@ const hifzNoClass =
       );
 
 html += `
-  <span class="mChunk" data-ref="${a.ref}">
+  <span class="mChunk${trainMaskHidden ? " is-train-hidden" : ""}${(i === 0 && trainMaskHidden) ? " is-train-first-hint" : ""}" data-ref="${a.ref}"${i === 0 ? ` data-train-first="true"` : ""}>
     <span class="mText" dir="rtl" lang="ar">${wordsHtml}</span>
-    <button class="mNo${hifzNoClass}${((typeof favSet !== "undefined") && favSet && favSet.has(String(a.ref))) ? " is-fav" : ""}${getNoteForRef(a.ref).trim() ? " is-note" : ""}"
+    <button class="mNo${hifzNoClass}${trainRateOpen ? " is-train-rate-open" : ""}${((typeof favSet !== "undefined") && favSet && favSet.has(String(a.ref))) ? " is-fav" : ""}${getNoteForRef(a.ref).trim() ? " is-note" : ""}"
 type="button"
 data-ref="${a.ref}"
+data-ayah-no="${no}"
+data-train-state="${trainRateOpen ? "rating" : (trainMaskHidden ? "hidden" : "normal")}"
 style="--hifz-ring:${hifzRing};"
-aria-label="Play ${a.ref}">${no}</button>
+title="${trainHintTitle}"
+aria-label="${trainAriaLabel}">${trainRateOpen ? buildHifzTrainMaskRateInnerHtml() : no}</button>
   </span>
 `;
   }
 
   flow.insertAdjacentHTML("beforeend", html);
   view.__mushafCacheDirty = true;
+
+  try { syncHifzTrainMaskDom(view); } catch(e) {}
 
   // ✅ WICHTIG: Justify/Spaces NACHDEM neuer Content im DOM ist
   try { applyMushafJustify(); } catch(e) {}
@@ -12577,7 +13707,30 @@ renderChunk();
   if (!view._mushafBound) {
     view._mushafBound = true;
 
+    const getHiddenTrainChunkFromTarget = (target) => {
+      if (!isHifzTrainMaskOn()) return null;
+      return target?.closest?.(".mChunk.is-train-hidden[data-ref]") || null;
+    };
+
     view.addEventListener("click", (e) => {
+      const trainModeBtn = e.target.closest?.('[data-action="toggleTrainModeMask"]');
+      if (trainModeBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const nextOn = !isHifzTrainMaskOn();
+        setHifzTrainMaskOn(nextOn);
+
+        if (nextOn) {
+          const firstTrainRef = String(view.querySelector('.mChunk[data-ref]')?.getAttribute('data-ref') || "");
+          if (isValidHifzTrainRef(firstTrainRef)) {
+            currentRef = firstTrainRef;
+          }
+        }
+
+        renderCurrent(currentRef);
+        return;
+      }
 
       // ✅ View-Mode Toggle (Ayah/Mushaf)
       const toggleBtn = e.target.closest?.('[data-action="toggleView"]');
@@ -12594,6 +13747,19 @@ if (suraBtn) {
   }
   return;
 }
+
+      const hiddenTrainChunk = getHiddenTrainChunkFromTarget(e.target);
+      if (hiddenTrainChunk) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const r = String(hiddenTrainChunk.getAttribute("data-ref") || "");
+        if (!r) return;
+
+        revealHifzTrainMaskRef(r);
+        setFocus(r, { updateUrl: true, scroll: false });
+        return;
+      }
 
       // Word click: plays WBW deterministic audio (data-audio), fallback to data-audio2
       const wEl = e.target.closest(".w");
@@ -12621,6 +13787,23 @@ if (noBtn) {
   e.stopPropagation();
   const r = noBtn.getAttribute("data-ref");
   if (!r) return;
+
+  if (isHifzTrainMaskOn() && noBtn.classList.contains("is-train-rate-open") && isHifzTrainMaskRatePending(r)) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const rateEl = e.target.closest?.(".mTrainRateHalf[data-rate]");
+    let rate = String(rateEl?.getAttribute("data-rate") || "").trim().toLowerCase();
+
+    if (!(rate === "bad" || rate === "good")) {
+      const rect = noBtn.getBoundingClientRect();
+      rate = (e.clientX < (rect.left + (rect.width / 2))) ? "bad" : "good";
+    }
+
+    rateHifzTrainMaskRef(r, rate);
+    renderCurrent(r);
+    return;
+  }
 
     // ✅ SHIFT + Klick => NOTES (nur im Mushaf-Mode)
   if (viewMode === "mushaf" && e.shiftKey) {
@@ -12705,7 +13888,119 @@ if (noBtn) {
       }
     });
 
+    view.addEventListener("mouseover", (e) => {
+      const chunk = getHiddenTrainChunkFromTarget(e.target);
+      if (!chunk) return;
+
+      const r = String(chunk.getAttribute("data-ref") || "");
+      if (!r) return;
+
+      scheduleHifzTrainMaskReveal(r, 1000);
+    }, { passive: true });
+
+    view.addEventListener("mouseout", (e) => {
+      const chunk = e.target?.closest?.(".mChunk.is-train-hidden[data-ref]");
+      if (!chunk) return;
+
+      const r = String(chunk.getAttribute("data-ref") || "");
+      if (!r) return;
+
+      const rel = e.relatedTarget;
+      const stillInsideSameChunk =
+        rel?.closest?.(`.mChunk.is-train-hidden[data-ref="${CSS.escape(r)}"]`);
+
+      if (stillInsideSameChunk) return;
+      clearHifzTrainMaskHoverTimer(r);
+    }, { passive: true });
+
+    if (!document.__hifzTrainMaskHotkeysBound) {
+      document.__hifzTrainMaskHotkeysBound = true;
+
+      document.addEventListener("keydown", (e) => {
+        const key = String(e.key || "");
+        const code = String(e.code || "");
+
+        const isSpace = code === "Space" || key === " ";
+        const isCtrlSpace = isSpace && !!e.ctrlKey;
+        const isBad = key === "1" || code === "Digit1" || code === "Numpad1";
+        const isGood = key === "3" || code === "Digit3" || code === "Numpad3";
+        const isEscape = key === "Escape" || code === "Escape";
+
+        if (!isSpace && !isBad && !isGood && !isEscape) return;
+        if (e.repeat) return;
+
+        const ae = document.activeElement;
+        const typing =
+          ae &&
+          (ae.tagName === "INPUT" ||
+            ae.tagName === "TEXTAREA" ||
+            ae.isContentEditable);
+
+        if (typing) return;
+        if (!isHifzTrainMaskOn()) return;
+
+        if (isEscape) {
+          setHifzTrainMaskOn(false);
+          renderCurrent(currentRef);
+
+          e.preventDefault();
+          e.stopPropagation();
+          if (typeof e.stopImmediatePropagation === "function") {
+            e.stopImmediatePropagation();
+          }
+          return;
+        }
+
+        const activeView = getActiveHifzTrainMaskView();
+        if (!activeView) return;
+
+        if (isSpace) {
+          if (isCtrlSpace) {
+            const pendingRef = getHifzTrainMaskPendingRateRef();
+            const refToCover =
+              (pendingRef && isHifzTrainMaskRevealed(pendingRef))
+                ? pendingRef
+                : (isHifzTrainMaskRevealed(currentRef) ? String(currentRef || "") : "");
+
+            if (!refToCover) return;
+
+            coverHifzTrainMaskRef(refToCover);
+
+            e.preventDefault();
+            e.stopPropagation();
+            if (typeof e.stopImmediatePropagation === "function") {
+              e.stopImmediatePropagation();
+            }
+            return;
+          }
+
+          if (!revealCurrentOrFirstHiddenTrainAyah(activeView)) return;
+
+          e.preventDefault();
+          e.stopPropagation();
+          if (typeof e.stopImmediatePropagation === "function") {
+            e.stopImmediatePropagation();
+          }
+          return;
+        }
+
+        const pendingRef = getHifzTrainMaskPendingRateRef();
+        if (!pendingRef) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+        if (typeof e.stopImmediatePropagation === "function") {
+          e.stopImmediatePropagation();
+        }
+
+        rateHifzTrainMaskRef(pendingRef, isBad ? "bad" : "good");
+        renderCurrent(pendingRef);
+      }, { capture: true });
+    }
+  }
+
 // Scroll: Auto-Fokus (performant: Positions-Cache + rAF)
+
 view.__mushafPosCache = null;
 view.__mushafRAF = 0;
 view.__mushafLastRef = "";
@@ -12795,7 +14090,6 @@ view.addEventListener("scroll", () => {
 }, { passive: true });
 
   }
-}
 
 // =========================
 // FIRST VISIT WELCOME (Intentions + Surah Grid + Donate)
@@ -12809,178 +14103,131 @@ const LS_INTENTS = "q_intents_v1";
 
 // Keep DEFAULT_INTENTS small (used only when localStorage is empty)
 const DEFAULT_INTENTS = [
-  "Seek closeness to God (Taqarrub)",
-  "Cultivate gratitude",
-  "Strengthen trust in God (Tawakkul)",
+  "I intend this hifz for Allah alone",
+  "I intend to preserve Allah’s Book in my heart",
+  "I intend to review it faithfully and not neglect it",
 ];
 
 // All options in collapsible groups (accordion)
 const INTENT_GROUPS = [
   {
-    title: "Spiritual & Worship",
+    title: "Sincerity & Worship",
     items: [
-      "Seek closeness to God (Taqarrub)",
-      "Cultivate gratitude",
-      "Deepen repentance (Tawba)",
-      "Practice sincerity (Ikhlās)",
-      "Strengthen God-conscious awe / mindful reverence (Taqwā)",
-      "Nurture hope (Rajāʾ)",
-      "Train patience (Ṣabr)",
-      "Strengthen trust in God (Tawakkul)",
-      "Develop humility",
-      "Find inner peace / tranquility (Sakīna)",
-      "Pursue purification of the heart (Tazkiya)",
-      "Increase love for God and for goodness",
-      "Remember the Hereafter",
-      "Keep awareness of one’s mortality",
-      "Deepen understanding of God’s mercy",
-      "Understand God’s justice",
-      "Learn God’s names and attributes (Asmāʾ wa Ṣifāt)",
-      "Seek God’s guidance (Hudā)",
-      "Awaken the heart when feeling spiritually empty",
-      "Deepen prayer/devotion through Qur’an reading",
-      "Let it inspire supplication (Duʿāʾ)",
-      "Structure a practice of thanks and supplication"
+      "I intend this hifz for Allah alone",
+      "I intend to seek closeness to Allah through memorizing His Book",
+      "I intend to deepen repentance (Tawba) through hifz",
+      "I intend to strengthen sincerity (Ikhlas)",
+      "I intend to grow in taqwa through memorizing the Quran",
+      "I intend to nurture hope (Raja') through the Quran",
+      "I intend to train patience (Sabr) through steady hifz",
+      "I intend to strengthen trust in Allah (Tawakkul)",
+      "I intend to develop humility through the Quran",
+      "I intend to find sakina through hifz and review",
+      "I intend to purify my heart (Tazkiya) through the Quran",
+      "I intend to increase love for Allah and for goodness",
+      "I intend to remember the Hereafter through hifz",
+      "I intend to keep awareness of my mortality through the Quran",
+      "I intend to deepen my understanding of Allah’s mercy",
+      "I intend to understand Allah’s justice more deeply",
+      "I intend to seek Allah’s guidance (Huda) through hifz",
+      "I intend to awaken my heart when it becomes spiritually weak"
     ]
   },
 
   {
-    title: "Guidance & Decision-Making",
+    title: "Preservation & Review",
     items: [
-      "Seek clarity in a specific life question",
-      "Sharpen one’s moral compass",
-      "Put life priorities in order",
-      "Strengthen moral standards",
-      "Correct oneself (self-reflection)",
-      "Strengthen impulse control",
-      "Take responsibility more consciously",
-      "Find meaning in suffering/pain",
-      "Put future anxiety into perspective",
-      "Find guidance for relationships",
-      "Better understand how to handle conflicts",
-      "Realign life goals",
-      "Recognize dependencies / unhealthy patterns"
+      "I intend to preserve Allah’s Book in my heart",
+      "I intend to review it faithfully and not neglect it",
+      "I intend to make the Quran my daily companion",
+      "I intend to keep my memorization strong through repetition",
+      "I intend to protect what I memorize from being forgotten",
+      "I intend to stay consistent in hifz even when motivation is low",
+      "I intend to complete my memorization with discipline and patience",
+      "I intend to build regular consistency (Wird)",
+      "I intend to train concentration (Khushu') during hifz",
+      "I intend to improve my Tajwid while memorizing",
+      "I intend to memorize specific surahs needed in daily worship",
+      "I intend to keep personal notes that help me retain the Quran"
     ]
   },
 
   {
-    title: "Character & Ethics",
+    title: "Understanding & Living by the Quran",
     items: [
-      "Promote honesty",
-      "Strengthen a sense of justice",
-      "Cultivate compassion/mercy",
-      "Learn generosity",
-      "Practice modesty instead of ego",
-      "Practice forgiveness",
-      "Reduce envy",
-      "Restrain anger",
-      "Avoid spite/malice",
-      "Increase helpfulness",
-      "Deepen respect for others",
-      "Develop an ethic of responsibility",
-      "Train mindfulness in words and actions",
-      "Develop empathy",
-      "Improve communication ethics (not harming, not backbiting)",
-      "Deal with injustice without becoming unjust oneself"
+      "I intend to understand the meaning and message of what I memorize",
+      "I intend to grasp the structure and composition of a surah",
+      "I intend to identify recurring themes while memorizing",
+      "I intend to use the stories of the prophets as learning material",
+      "I intend to clarify long-held questions through the Quran",
+      "I intend to live by what I memorize",
+      "I intend to let the Quran correct my character",
+      "I intend to sharpen my moral compass through hifz",
+      "I intend to put my life priorities in order through the Quran",
+      "I intend to correct myself through honest self-reflection",
+      "I intend to strengthen impulse control through the Quran",
+      "I intend to take responsibility more consciously",
+      "I intend to let the Quran guide my choices and priorities",
+      "I intend to make the Quran proof for me, not against me"
     ]
   },
 
   {
-    title: "Knowledge & Understanding",
+    title: "Character, Habits & Daily Life",
     items: [
-      "Understand the meaning and message (Maʿnā)",
-      "Learn the context of verses (Asbāb an-Nuzūl)",
-      "Grasp the structure and composition of a surah",
-      "Identify recurring themes",
-      "Use the stories of the prophets as learning material",
-      "Study the Qur’an’s way of reasoning/argumentation",
-      "Notice linguistic nuances (Arabic)",
-      "Understand rhetoric and imagery",
-      "Clarify long-held questions"
+      "I intend to promote honesty",
+      "I intend to strengthen a sense of justice",
+      "I intend to cultivate compassion and mercy",
+      "I intend to learn generosity",
+      "I intend to practice modesty instead of ego",
+      "I intend to practice forgiveness",
+      "I intend to reduce envy",
+      "I intend to restrain anger",
+      "I intend to avoid spite and malice",
+      "I intend to increase helpfulness",
+      "I intend to deepen respect for others",
+      "I intend to improve communication ethics",
+      "I intend to derive practical action steps from what I memorize",
+      "I intend to improve my habits through the Quran",
+      "I intend to stabilize daily discipline and routine",
+      "I intend to leave sins and harmful habits through the Quran"
     ]
   },
 
   {
-    title: "Practice & Daily Life",
+    title: "Prayer, Family & Benefit",
     items: [
-      "Derive practical action steps (“What will I change today?”)",
-      "Improve habits (e.g., speech, consumption, time use)",
-      "Live family life more consciously",
-      "Strengthen fairness at work/study",
-      "Become more mindful about money/charity",
-      "Motivate social engagement",
-      "Take steps toward reconciliation",
-      "Initiate making amends",
-      "Stabilize daily discipline/routine",
-      "Approach parent–child conflicts with more kindness",
-      "Reflect on partnership: responsibility, loyalty, respect",
-      "Learn how to deal with being hurt/offended"
+      "I intend to stand with the Quran in prayer",
+      "I intend to beautify my salah with memorized Quran",
+      "I intend to let hifz inspire my dua",
+      "I intend to strengthen shared values in my family",
+      "I intend to benefit my family through my hifz",
+      "I intend to approach family conflicts with more kindness",
+      "I intend to reflect on relationships through the guidance of the Quran",
+      "I intend to teach and pass on the Quran when Allah allows",
+      "I intend to encourage others to love and memorize the Quran",
+      "I intend to be among the people of the Quran",
+      "I intend to use my hifz in service of good"
     ]
   },
 
   {
-    title: "Emotional & Mental Well-Being",
+    title: "Protection, Healing & Right Motives",
     items: [
-      "Nurture hope during depression/lack of motivation",
-      "Reduce anxiety through a shift in perspective",
-      "Reduce stress through recitation/reading rhythm",
-      "Stabilize self-worth (not tied to external standards)",
-      "Transform guilt into constructive repentance",
-      "Bring order to inner turmoil",
-      "Cope with loneliness",
-      "Channel anger/frustration constructively",
-      "Cultivate gratitude instead of rumination",
-      "Build resilience",
-      "Gain mental clarity through reflection on verses (Tadabbur)"
-    ]
-  },
-
-  {
-    title: "Community, Family & Daʿwa",
-    items: [
-      "Strengthen shared values in the family",
-      "Teach religion to children/students",
-      "Become articulate for conversations/Daʿwa",
-      "Build bridges in dialogue with people of other faiths",
-      "Read social justice as a calling/mission",
-      "Emphasize responsibility for the weak/disadvantaged",
-      "Use role models from Qur’anic narratives for community work",
-      "Clarify one’s identity (“Who am I in faith?”)",
-      "Experience belonging (tradition, history, continuity)",
-      "Work through existential questions of meaning",
-      "Define oneself by values rather than status/achievement",
-      "Reflect on consumer and performance culture",
-      "Deepen gratitude for creation/the environment"
-    ]
-  },
-
-  {
-    title: "Language, Culture & Beauty",
-    items: [
-      "Enjoy the beauty of recitation",
-      "Learn/improve Arabic",
-      "Better understand the cultural history of Islam"
-    ]
-  },
-
-  {
-    title: "Recitation & Learning Skills",
-    items: [
-      "Improve Tajwīd",
-      "Build regular consistency (Wird)",
-      "Train concentration (Khushūʿ)",
-      "Learn specific surahs for everyday situations",
-      "Improve reading comprehension through vocabulary work",
-      "Keep personal notes/journaling"
-    ]
-  },
-
-  {
-    title: "Protection & Healing",
-    items: [
-      "Ask for protection from temptations",
-      "Gain steadfastness in trials",
-      "Ask for healing/relief (Ruqya intention, within one’s practice)"
+      "I intend to ask Allah for protection from temptations",
+      "I intend to gain steadfastness in trials through the Quran",
+      "I intend to ask for healing and relief through the Quran",
+      "I intend to nurture hope during low motivation",
+      "I intend to reduce anxiety through the rhythm of hifz and review",
+      "I intend to bring order to inner turmoil through the Quran",
+      "I intend to build resilience through memorizing Allah’s Book",
+      "I intend not to seek status through hifz",
+      "I intend not to memorize for praise or reputation",
+      "I intend not to use the Quran for showing off",
+      "I intend not to make hifz about numbers, speed, or image",
+      "I intend to renew my intention whenever it becomes weak",
+      "I intend to ask Allah to protect my hifz from riya'",
+      "I intend to keep this journey sincere even if no one sees it"
     ]
   },
 ];
@@ -13050,6 +14297,7 @@ function _getAllIntentsSafe() {
 
 function _loadIntents() {
   const all = _getAllIntentsSafe();
+  const allSet = new Set(all);
 
   try {
     const raw = localStorage.getItem(LS_INTENTS);
@@ -13060,9 +14308,13 @@ function _loadIntents() {
     const arr = JSON.parse(raw);
     if (!Array.isArray(arr)) return new Set(all);
 
-    const set = new Set(arr.map(String));
+    const set = new Set(
+      arr
+        .map(String)
+        .filter((label) => allSet.has(label))
+    );
 
-    // Wenn alles abgewählt: wieder alles an
+    // Wenn nach dem Filtern nichts übrig bleibt: wieder alles an
     if (set.size === 0) return new Set(all);
 
     return set;
@@ -13087,10 +14339,10 @@ function ensureWelcomeModal() {
 
   ov.innerHTML = `
     <div class="welcomeModal" role="dialog" aria-modal="true" aria-label="Welcome">
- <div class="welcomeHeader">
+<div class="welcomeHeader">
   <div class="welcomeHeaderCenter">
-    <div class="welcomeTitle">With what intentions do you read the Quran?</div>
-    <div class="welcomeSubtitle">(The more intentions, the more Hasanat while reading.)</div>
+    <div class="welcomeTitle">With what intentions do you memorize the Quran?</div>
+    <div class="welcomeSubtitle">(Choose sincere intentions for hifz, review, and living by the Quran.)</div>
   </div>
   <button class="welcomeClose" id="welcomeClose" type="button" aria-label="Close">✕</button>
 </div>
@@ -13205,6 +14457,39 @@ function ensureWelcomeModal() {
     const grid = ov.querySelector("#welcomeSurahGrid");
     if (!grid) return;
 
+    function getWelcomeSurahProgressPct(surahNo){
+      try{
+        if (typeof getHifzSurahProgressPct === "function") {
+          return Math.max(0, Math.min(100, Number(getHifzSurahProgressPct(surahNo) || 0)));
+        }
+
+        if (typeof getSuraRefs !== "function" || typeof getHifzProgressRatioForRef !== "function") {
+          return 0;
+        }
+
+        const stage = String(
+          (typeof hifzStageValue !== "undefined" && hifzStageValue) ? hifzStageValue : "1"
+        );
+
+        const refs = getSuraRefs(Number(surahNo) || 0) || [];
+        if (!refs.length) return 0;
+
+        let sum = 0;
+        let count = 0;
+
+        for (const ref of refs){
+          const ratio = Number(getHifzProgressRatioForRef(ref, stage) || 0);
+          sum += Math.max(0, Math.min(1, ratio));
+          count += 1;
+        }
+
+        if (!count) return 0;
+        return Math.max(0, Math.min(100, Math.round((sum / count) * 100)));
+      }catch{
+        return 0;
+      }
+    }
+
     // build styled grid 1..114 (matches app.css: .welcomeSuraCard / .welcomeSuraNo / .welcomeSuraAr / .welcomeSuraAyahs)
     grid.innerHTML = Array.from({ length: 114 }, (_, i) => {
       const s = i + 1;
@@ -13215,9 +14500,11 @@ function ensureWelcomeModal() {
       const ayahs  = (meta && (meta.ayahs || meta.verses || meta.count)) ? Number(meta.ayahs || meta.verses || meta.count) : 0;
 
       const ayahLabel = ayahs ? `${ayahs} Ayahs` : "";
+      const pct = getWelcomeSurahProgressPct(s);
+      const progressStyle = `--welcome-sura-progress-pct:${pct}%;`;
 
       return `
-        <button class="welcomeSuraCard" type="button" data-s="${s}">
+        <button class="welcomeSuraCard${pct > 0 ? " is-progress" : ""}${pct >= 100 ? " is-mastered" : ""}" type="button" data-s="${s}" style="${progressStyle}">
           <div class="welcomeSuraNo">${s}</div>
 
           <div class="welcomeSuraLeft">
@@ -13244,13 +14531,16 @@ function ensureWelcomeModal() {
 
   ov._welcome = {
     open() {
-      // build current UI fresh
-      renderChecks();
-      renderSurahGrid();
+      // ✅ zuerst sichtbar machen, damit ein späterer Render-Fehler
+      // das Öffnen nicht komplett verhindert
       ov.classList.add("is-open");
 
+      // build current UI fresh
+      try { renderChecks(); } catch (e) { console.warn("[welcome] renderChecks failed:", e); }
+      try { renderSurahGrid(); } catch (e) { console.warn("[welcome] renderSurahGrid failed:", e); }
+
       // refresh auth UI each time
-      try { refreshWelcomeAuthUI(); } catch {}
+      try { refreshWelcomeAuthUI(); } catch (e) { console.warn("[welcome] refreshWelcomeAuthUI failed:", e); }
 
       // focus for accessibility
       try { modal.focus?.(); } catch {}
@@ -13339,10 +14629,14 @@ function _applyState(stateObj) {
   } catch {}
 }
 
-function _mergeStates(localState, remoteState) {
-  const merged = Object.assign({}, localState || {}, remoteState || {});
+function _mergeStates(localState, remoteState, { preferLocal = true } = {}) {
+  if (!preferLocal) {
+    return Object.assign({}, remoteState || {});
+  }
 
-  // merge bookmarks by union (array of "sura:ayah")
+  const merged = Object.assign({}, remoteState || {}, localState || {});
+
+  // merge bookmarks by union (array of "sura:ayah") – nur wenn Local bewusst gewinnen darf
   const BK = (typeof LS_BOOKMARKS !== "undefined") ? LS_BOOKMARKS : "q_bookmarks_v1";
   try {
     const a = localState && localState[BK] ? JSON.parse(localState[BK]) : [];
@@ -13359,43 +14653,129 @@ function _mergeStates(localState, remoteState) {
 async function syncAccountState() {
   // 1) get remote
   let remote = {};
+  let remoteLoaded = false;
+
   try {
     const got = await _api("/api/state", { method: "GET" });
     remote = (got && got.state) ? got.state : {};
+    remoteLoaded = true;
   } catch {
     remote = {};
+    remoteLoaded = false;
   }
 
-  // 2) merge with local
+  // 2) compare local vs remote
   const local = _exportLocalState();
-  const merged = _mergeStates(local, remote);
+  const BK = (typeof LS_BOOKMARKS !== "undefined") ? LS_BOOKMARKS : "q_bookmarks_v1";
 
-  // 3) apply merged locally (writes localStorage)
+  const SYNC_IGNORE_KEYS = new Set([
+    "q_auth_token_v1",
+    "q_auth_set_at_v1",
+    "q_auth_user_v1",
+    "q_account_sync_last_at_v1",
+    "q_account_sync_status_v1",
+    "q_account_sync_mode_v1",
+    LS_ACC_SYNC_CONFLICT
+  ]);
+
+  function _stableSortDeep(value) {
+    if (Array.isArray(value)) return value.map(_stableSortDeep);
+
+    if (value && typeof value === "object") {
+      const out = {};
+      Object.keys(value).sort().forEach((k) => {
+        out[k] = _stableSortDeep(value[k]);
+      });
+      return out;
+    }
+
+    return value;
+  }
+
+  function _normalizeStateForCompare(stateObj) {
+    const src = (stateObj && typeof stateObj === "object") ? stateObj : {};
+    const out = {};
+    const keys = Object.keys(src)
+      .map(String)
+      .filter((k) => !SYNC_IGNORE_KEYS.has(k))
+      .sort();
+
+    for (const k of keys) {
+      const raw = src[k];
+      if (typeof raw !== "string") continue;
+
+      if (k === BK) {
+        try {
+          const arr = JSON.parse(raw);
+          const clean = Array.isArray(arr)
+            ? arr.map(String).filter((r) => /^\d+:\d+$/.test(r)).sort()
+            : [];
+          out[k] = JSON.stringify(clean);
+          continue;
+        } catch {}
+      }
+
+      try {
+        out[k] = JSON.stringify(_stableSortDeep(JSON.parse(raw)));
+      } catch {
+        out[k] = raw;
+      }
+    }
+
+    return JSON.stringify(out);
+  }
+
+  if (!remoteLoaded) {
+    try { window.__refreshAccountSyncUi?.(); } catch {}
+    return { ok: false, mismatch: false };
+  }
+
+  const localNormalized = _normalizeStateForCompare(local);
+  const remoteNormalized = _normalizeStateForCompare(remote);
+
+  const statesDiffer = (localNormalized !== remoteNormalized);
+
+  if (statesDiffer) {
+    __setAccountSyncConflict(true);
+
+    try { window.__refreshAccountSyncUi?.(); } catch {}
+
+    try {
+      window.alert(
+        'Account storage ≠ Browser storage, click account button to upload Browser storage ("Save device") or import Account storage ("Load account")'
+      );
+    } catch {}
+
+    return { ok: true, mismatch: true };
+  }
+
+  __setAccountSyncConflict(false);
+
+  // 3) states already match -> local nur sauber aktualisieren
+  const merged = _mergeStates(local, remote, { preferLocal: true });
   _applyState(merged);
 
-  // ✅ ROOT FIX: Theme + Style AFTER state got applied
+  // ✅ Theme + Style AFTER state got applied
   try {
-    applyTheme(loadTheme()); // sets data-theme + persists
+    applyTheme(loadTheme());
   } catch (e) {
     console.warn("[theme] applyTheme after sync failed:", e);
   }
 
   try {
     const sid = loadStyleThemeId();
-    if (sid) applyStyleThemeById(sid); // recompute CSS vars for current light/dark
+    if (sid) applyStyleThemeById(sid);
   } catch (e) {
     console.warn("[style] re-apply style after sync failed:", e);
   }
 
-  // 4) push merged back to server
-  await _api("/api/state", {
-    method: "PUT",
-    body: JSON.stringify({ state: merged })
-  });
-
   // refresh UI bits that depend on localStorage
   try { syncUI?.(); } catch {}
   try { renderChecks?.(); } catch {}
+  try { window.__refreshAccountHifzScore?.(); } catch {}
+  try { window.__refreshAccountSyncUi?.(); } catch {}
+
+  return { ok: true, mismatch: false };
 }
 
 function initWelcomeAuth(ov) {
@@ -13458,6 +14838,7 @@ function initAccountPanel(){
   const btnLogin = document.getElementById("acctLoginBtn");
   const btnCreate = document.getElementById("acctCreateBtn");
   const msg = document.getElementById("acctMsg");
+  const elHifzScore = document.getElementById("acctHifzScoreValue");
 
   const btnExport = document.getElementById("acctExportBtn");
   const fileImport = document.getElementById("acctImportFile");
@@ -13479,6 +14860,9 @@ function initAccountPanel(){
   function refreshAccountUI(){
     const u = _getAuthUser();
     setLoggedInUI(!!u);
+
+    try { window.__refreshAccountHifzScore?.(); } catch {}
+
     if (u) setMsg("Logged in", false);
     else setMsg("", false);
   }
@@ -13681,13 +15065,17 @@ function _navIsReload() {
 }
 
 function maybeShowWelcome() {
-  // ✅ Reload -> NICHT anzeigen
-  if (_navIsReload()) return;
+  const isReload = _navIsReload();
 
-  // ✅ Wenn in diesem Tab schon gezeigt -> nicht nochmal (z.B. Hash-Navigation)
-  try {
-    if (sessionStorage.getItem(SS_WELCOME_SHOWN_THIS_TAB) === "1") return;
-  } catch {}
+  // ✅ Beim Reload Welcome wieder erlauben, damit du es testen kannst
+  if (isReload) {
+    try { sessionStorage.removeItem(SS_WELCOME_SHOWN_THIS_TAB); } catch {}
+  } else {
+    // ✅ Nur bei normaler Navigation im selben Tab nicht doppelt öffnen
+    try {
+      if (sessionStorage.getItem(SS_WELCOME_SHOWN_THIS_TAB) === "1") return;
+    } catch {}
+  }
 
   try { sessionStorage.setItem(SS_WELCOME_SHOWN_THIS_TAB, "1"); } catch {}
 
@@ -13759,6 +15147,11 @@ function bindAccountMenuActions(){
   const bugSend = document.getElementById("acctBugSend");
 
   const msg = document.getElementById("acctMsg");
+  const elHifzScore = document.getElementById("acctHifzScoreValue");
+  const syncTools = document.getElementById("acctSyncTools");
+  const syncHint = document.getElementById("acctSyncHint");
+  const btnLoadAccount = document.getElementById("acctLoadAccountBtn");
+  const btnSaveDevice = document.getElementById("acctSaveDeviceBtn");
 
   if (!picker || !btnLogin || !btnCreate || !btnExport || !fileImport || !msg) return;
   if (picker.__acctActionsBound) return;
@@ -13778,8 +15171,26 @@ function bindAccountMenuActions(){
 
   function refreshButtons(){
     const inOk = isLoggedIn();
+    const hifzMax = (typeof HIFZ_SCORE_MAX !== "undefined") ? HIFZ_SCORE_MAX : 1000000000;
+
     btnLogin.textContent = inOk ? "Log out" : "Log in";
     btnCreate.style.display = inOk ? "none" : "inline-flex";
+
+    if (syncTools) syncTools.style.display = inOk ? "flex" : "none";
+    if (syncHint) syncHint.style.display = inOk ? "block" : "none";
+
+    if (elHifzScore) {
+      if (!inOk) {
+        elHifzScore.textContent = `0/${hifzMax}`;
+      } else {
+        let scoreNow = 0;
+        try { scoreNow = Math.max(0, Math.round(Number(getHifzScoreValue?.() || 0))); } catch {}
+        elHifzScore.textContent = `${scoreNow}/${hifzMax}`;
+      }
+    }
+
+    try { window.__refreshAccountSyncUi?.(); } catch {}
+
     if (inOk) setMsg("Logged in", false);
     else setMsg("", false);
   }
@@ -13824,8 +15235,11 @@ function bindAccountMenuActions(){
       try { __setAuthToken?.(login.token || ""); } catch {}
       try { localStorage.setItem(LS_ACC_USER, username); } catch {}
 
-      // Cloud -> Local ziehen
-      try { await __accountPull?.(); } catch {}
+      let syncResult = { ok:false, mismatch:false };
+
+      try {
+        syncResult = await syncAccountState();
+      } catch {}
 
       // UI refresh hooks
       try { window.__refreshFavCount?.(); } catch {}
@@ -13841,7 +15255,18 @@ function bindAccountMenuActions(){
       try { elPass.value = ""; } catch {}
 
       refreshButtons();
-      setMsg(mode === "create" ? "Account created + logged in." : "Logged in.", false);
+
+      if (syncResult?.mismatch) {
+        setMsg('Logged in. Use "Load account" or "Save device".', true);
+      } else {
+        try { window.__markAccountSynced?.("login"); } catch {}
+        setMsg(
+          mode === "create"
+            ? "Account created. Login finished."
+            : "Logged in.",
+          false
+        );
+      }
     }catch(e){
       setMsg(String(e?.message || e), true);
     }
@@ -13856,14 +15281,66 @@ btnLogin.addEventListener("click", async () => {
     try { localStorage.removeItem("q_auth_token_v1"); } catch {}
     try { localStorage.removeItem("q_auth_set_at_v1"); } catch {}
     try { localStorage.removeItem(LS_ACC_USER); } catch {}
+
     refreshButtons();
     setMsg("Logged out.", false);
     return;
   }
+
   await doLoginOrCreate("login");
 });
 
   btnCreate.addEventListener("click", () => doLoginOrCreate("create"));
+
+  btnLoadAccount?.addEventListener("click", async () => {
+    if (!isLoggedIn()) {
+      setMsg("Please log in first.", true);
+      return;
+    }
+
+    setMsg("Loading account storage to browser storage...", false);
+
+    try {
+      try { window.__setAccountSyncUiState?.("syncing", { mode:"account" }); } catch {}
+
+      const ok = await __accountPull?.();
+      if (!ok) throw new Error("Could not load account storage.");
+
+      __setAccountSyncConflict(false);
+
+      try { window.__markAccountSynced?.("account"); } catch {}
+      refreshButtons();
+      setMsg("Loaded account storage to browser storage.", false);
+    } catch (e) {
+      try { window.__setAccountSyncUiState?.("error", { mode:"account" }); } catch {}
+      setMsg(String(e?.message || e), true);
+    }
+  });
+
+  btnSaveDevice?.addEventListener("click", async () => {
+    if (!isLoggedIn()) {
+      setMsg("Please log in first.", true);
+      return;
+    }
+
+    setMsg("Saving browser storage to account storage...", false);
+
+    try {
+      __setAccountSyncConflict(false);
+      try { window.__setAccountSyncUiState?.("syncing", { mode:"live" }); } catch {}
+
+      const ok = await __accountPush?.();
+      if (!ok) throw new Error("Could not save browser storage to account storage.");
+
+      try { window.__markAccountSynced?.("live"); } catch {}
+      refreshButtons();
+      setMsg("Saved browser storage to account storage.", false);
+    } catch (e) {
+      __setAccountSyncConflict(true);
+      try { window.__setAccountSyncUiState?.("error", { mode:"live" }); } catch {}
+      setMsg(String(e?.message || e), true);
+    }
+  });
 
   // Export settings JSON (inkl. Favorites Pages + Gruppen)
   btnExport.addEventListener("click", () => {
@@ -14069,15 +15546,14 @@ function bindStylePickerClickOnly(){
   bindAccountMenuToggle();
   bindAccountMenuActions();
   initDemoUI();
-initStylePicker();          // ✅ Accent/Style Designs initialisieren
-initSurfacePicker();        // ✅ Surface (bg/stage/chips/line + fav bg) Designs initialisieren
-// bindStylePickerClickOnly(); // ❌ disabled (handled by styles.js)
-  // ✅ Account UI darf die App NICHT crashen lassen
-  try {
-    if (typeof initAccountPanel === "function") initAccountPanel();
-  } catch (e) {
-    console.warn("[account] initAccountPanel failed:", e);
-  }
+  initStylePicker();          // ✅ Accent/Style Designs initialisieren
+  initSurfacePicker();        // ✅ Surface (bg/stage/chips/line + fav bg) Designs initialisieren
+  // bindStylePickerClickOnly(); // ❌ disabled (handled by styles.js)
+
+  // ✅ WICHTIG:
+  // initAccountPanel() hier NICHT mehr zusätzlich starten.
+  // Der Account ist bereits final über bindAccountMenuToggle() + bindAccountMenuActions() verdrahtet.
+  // Sonst hängen Login/Logout/Sync doppelt auf denselben Buttons.
 
   installHifzRecallHotkeys();
   installSpacebarAudioHotkey();
