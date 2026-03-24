@@ -9314,9 +9314,59 @@ function loadHifzRepeatTarget(){
 }
 
 const LS_HIFZ_STAGE_TREND = "q_hifz_stage_trend_v1";
+const LS_HIFZ_STAGE_TREND_COLLAPSED = "q_hifz_stage_trend_collapsed_v1";
 const HIFZ_STAGE_TREND_KEEP_DAYS = 36525; // 100 Jahre daily
 const HIFZ_STAGE_TREND_MIN_VIEW_DAYS = 14;
 const HIFZ_STAGE_TREND_LABEL_TARGET = 12;
+
+function loadHifzStageTrendCollapsed(){
+  try{
+    return localStorage.getItem(LS_HIFZ_STAGE_TREND_COLLAPSED) === "1";
+  }catch{
+    return false;
+  }
+}
+
+function saveHifzStageTrendCollapsed(v){
+  const on = !!v;
+
+  try{
+    if (on) localStorage.setItem(LS_HIFZ_STAGE_TREND_COLLAPSED, "1");
+    else localStorage.removeItem(LS_HIFZ_STAGE_TREND_COLLAPSED);
+  }catch{}
+
+  return on;
+}
+
+function applyHifzStageTrendCollapsedUi(root = document){
+  const collapsed = loadHifzStageTrendCollapsed();
+  const scope = (root && typeof root.querySelectorAll === "function") ? root : document;
+
+  scope.querySelectorAll(".hifzStageTrendCard").forEach((card) => {
+    card.classList.toggle("is-collapsed", collapsed);
+
+    const btn = card.querySelector('.hifzStageTrendToggle[data-action="toggleStageTrendCollapse"]');
+    if (btn) {
+      btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+      btn.setAttribute(
+        "aria-label",
+        collapsed ? "Expand Stage Progress" : "Collapse Stage Progress"
+      );
+      btn.setAttribute(
+        "title",
+        collapsed ? "Expand Stage Progress" : "Collapse Stage Progress"
+      );
+    }
+
+    const body = card.querySelector(".hifzStageTrendBody");
+    if (body) {
+      body.hidden = collapsed;
+      body.setAttribute("aria-hidden", collapsed ? "true" : "false");
+    }
+  });
+
+  return collapsed;
+}
 
 function _hifzTrendDateKeyFromDate(d){
   const y = d.getFullYear();
@@ -9656,56 +9706,49 @@ const xLabelsHtml = series.map((row, idx) => {
   }).join("");
 
   const hifzScoreText = formatHifzScore(getHifzScoreValue());
+  const isCollapsed = loadHifzStageTrendCollapsed();
 
   return `
-    <div class="ayahCard hifzStageTrendCard">
-      <div
-        class="hifzStageTrendHeader"
-        style="
-          display:grid;
-          grid-template-columns:1fr auto 1fr;
-          align-items:center;
-          column-gap:calc(var(--stage-w) * 0.010);
-          min-height:calc(var(--stage-h) * 0.022);
-        "
-      >
-        <div></div>
-        <div class="hifzStageTrendTitle">Stage Progress</div>
-        <div
-          style="
-            justify-self:end;
-            display:inline-flex;
-            align-items:center;
-            gap:calc(var(--stage-w) * 0.0042);
-            font-family:var(--font-meta);
-            font-size:calc(var(--ayah-font-meta) * 0.76);
-            font-weight:700;
-            line-height:1;
-            color:var(--color-text);
-            white-space:nowrap;
-          "
+    <div class="ayahCard hifzStageTrendCard${isCollapsed ? " is-collapsed" : ""}">
+      <div class="hifzStageTrendHeader">
+        <div class="hifzStageTrendHeaderSide"></div>
+
+        <button
+          class="hifzStageTrendToggle"
+          type="button"
+          data-action="toggleStageTrendCollapse"
+          aria-expanded="${isCollapsed ? "false" : "true"}"
+          aria-label="${isCollapsed ? "Expand Stage Progress" : "Collapse Stage Progress"}"
+          title="${isCollapsed ? "Expand Stage Progress" : "Collapse Stage Progress"}"
         >
-          <span style="opacity:0.72;">Hifzscore</span>
+          <span class="hifzStageTrendTitle">Stage Progress</span>
+          <span class="hifzStageTrendArrow" aria-hidden="true">▾</span>
+        </button>
+
+        <div class="hifzStageTrendHeaderMeta">
+          <span class="hifzStageTrendHeaderMetaLabel">Hifzscore</span>
           <span
             class="hifzHelpInfo"
             data-hifz-help="hifzscore-stage-progress"
             data-hifz-help-title="Hifzscore"
             data-hifz-help-text="this is a score for memorizing the quran in all 10 stages"
             aria-label="this is a score for memorizing the quran in all 10 stages">?</span>
-          <span style="font-size:calc(var(--ayah-font-meta) * 0.86);">${hifzScoreText}</span>
+          <span class="hifzStageTrendHeaderScore">${hifzScoreText}</span>
         </div>
       </div>
 
-      <div class="hifzStageTrendFrame">
-        <svg class="hifzStageTrendSvg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-label="Stage progress over days">
-          ${gridHtml}
-          ${linesHtml}
-          ${xLabelsHtml}
-        </svg>
-      </div>
+      <div class="hifzStageTrendBody"${isCollapsed ? ' hidden aria-hidden="true"' : ' aria-hidden="false"'}>
+        <div class="hifzStageTrendFrame">
+          <svg class="hifzStageTrendSvg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-label="Stage progress over days">
+            ${gridHtml}
+            ${linesHtml}
+            ${xLabelsHtml}
+          </svg>
+        </div>
 
-      <div class="hifzStageTrendLegend">
-        ${legendHtml}
+        <div class="hifzStageTrendLegend">
+          ${legendHtml}
+        </div>
       </div>
     </div>
   `;
@@ -12288,6 +12331,451 @@ const handleWriteRawInput = (input, rawValue) => {
   }
 };
 
+
+
+  const ensureHifzGoodFlightFx = () => {
+    let fx = document.querySelector(".hifzGoodFlightFx");
+    if (fx) return fx;
+
+    fx = document.createElement("div");
+    fx.className = "hifzGoodFlightFx";
+    fx.setAttribute("aria-hidden", "true");
+    fx.innerHTML = `
+      <svg class="hifzGoodFlightSvg" viewBox="0 0 1 1" preserveAspectRatio="none">
+        <path class="hifzGoodFlightGlowPath"></path>
+        <path class="hifzGoodFlightSparkPath"></path>
+      </svg>
+      <div class="hifzGoodFlightDust">
+        <span class="hifzGoodFlightDustCore"></span>
+        <span class="hifzGoodFlightDustMote is-a"></span>
+        <span class="hifzGoodFlightDustMote is-b"></span>
+        <span class="hifzGoodFlightDustMote is-c"></span>
+        <span class="hifzGoodFlightDustMote is-d"></span>
+      </div>
+    `;
+    document.body.appendChild(fx);
+    return fx;
+  };
+
+  const clearHifzGoodFlightFx = () => {
+    try { clearTimeout(Number(mount._hifzGoodFlightArrivalTimer || 0)); } catch(e) {}
+    try { clearTimeout(Number(mount._hifzGoodFlightClearTimer || 0)); } catch(e) {}
+    try {
+      if (typeof mount._hifzGoodFlightRaf === "number" && mount._hifzGoodFlightRaf) {
+        cancelAnimationFrame(mount._hifzGoodFlightRaf);
+      }
+    } catch(e) {}
+
+    const fx = document.querySelector(".hifzGoodFlightFx");
+    if (fx) {
+      fx.classList.remove("is-active");
+      fx.style.removeProperty("--flight-len");
+      fx.style.removeProperty("--flight-ms");
+
+      const dust = fx.querySelector(".hifzGoodFlightDust");
+      if (dust) {
+        dust.style.left = "0px";
+        dust.style.top = "0px";
+        dust.style.opacity = "0";
+        dust.style.transform = "translate(-50%, -50%)";
+      }
+    }
+
+    try {
+      if (mount._hifzGoodFlightTick && mount._hifzGoodFlightTick.isConnected) {
+        mount._hifzGoodFlightTick.classList.remove("is-good-arrival");
+      }
+    } catch(e) {}
+
+    mount._hifzGoodFlightTick = null;
+    mount._hifzGoodFlightArrivalTimer = 0;
+    mount._hifzGoodFlightClearTimer = 0;
+    mount._hifzGoodFlightRaf = 0;
+  };
+
+  const runHifzGoodFlightFromButton = (btn, ref) => {
+    const r = String(ref || "");
+    if (!btn || !/^\d+:\d+$/.test(r)) {
+      return { started:false, arrivalDelay:0, totalDelay:340 };
+    }
+
+    const tickSelector = (typeof CSS !== "undefined" && typeof CSS.escape === "function")
+      ? `.suraTick[data-ref="${CSS.escape(r)}"]`
+      : `.suraTick[data-ref="${r.replace(/"/g, '\\"')}"]`;
+
+    const tick = document.querySelector(tickSelector);
+    if (!tick) {
+      return { started:false, arrivalDelay:0, totalDelay:340 };
+    }
+
+    const fx = ensureHifzGoodFlightFx();
+    clearHifzGoodFlightFx();
+
+    const svg = fx.querySelector(".hifzGoodFlightSvg");
+    const glowPath = fx.querySelector(".hifzGoodFlightGlowPath");
+    const sparkPath = fx.querySelector(".hifzGoodFlightSparkPath");
+    const dust = fx.querySelector(".hifzGoodFlightDust");
+
+    if (!svg || !glowPath || !sparkPath || !dust) {
+      return { started:false, arrivalDelay:0, totalDelay:340 };
+    }
+
+    const startRect = btn.getBoundingClientRect();
+    const endRect = tick.getBoundingClientRect();
+
+    const startX = startRect.left + (startRect.width * 0.50);
+    const startY = startRect.top + (startRect.height * 0.50);
+
+    const endX = endRect.left + (endRect.width * 0.50);
+    const endY = endRect.top + (endRect.height * 0.54);
+
+    const dx = endX - startX;
+    const dy = endY - startY;
+    const dist = Math.max(1, Math.hypot(dx, dy));
+
+    const rootCs = getComputedStyle(document.documentElement);
+    const stageH = parseFloat(rootCs.getPropertyValue("--stage-h")) || window.innerHeight;
+
+    const nx = -dy / dist;
+    const ny = dx / dist;
+
+    const bendSign = Math.random() < 0.5 ? -1 : 1;
+    const bendMain =
+      Math.min(Math.max(dist * 0.26, stageH * 0.10), stageH * 0.28) *
+      bendSign *
+      (0.85 + (Math.random() * 0.45));
+
+    const bendLate = bendMain * -(0.42 + (Math.random() * 0.30));
+
+    const liftBase = Math.min(Math.max(dist * 0.18, stageH * 0.06), stageH * 0.18);
+    const lift1 = liftBase * (0.95 + (Math.random() * 0.45));
+    const lift2 = liftBase * (0.25 + (Math.random() * 0.35));
+
+    const c1x = startX + (dx * (0.20 + (Math.random() * 0.08))) + (nx * bendMain);
+    const c1y = startY + (dy * 0.10) + (ny * bendMain) - lift1;
+
+    const c2x = startX + (dx * (0.72 + (Math.random() * 0.10))) + (nx * bendLate);
+    const c2y = startY + (dy * 0.86) + (ny * bendLate) - lift2;
+
+    const d = `M ${startX} ${startY} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${endX} ${endY}`;
+
+    svg.setAttribute("viewBox", `0 0 ${Math.max(1, window.innerWidth)} ${Math.max(1, window.innerHeight)}`);
+    glowPath.setAttribute("d", d);
+    sparkPath.setAttribute("d", d);
+
+    let pathLen = 1;
+    try {
+      pathLen = Math.max(1, glowPath.getTotalLength());
+    } catch(e) {
+      return { started:false, arrivalDelay:0, totalDelay:340 };
+    }
+
+    const duration = Math.round(
+      Math.min(1620, Math.max(1080, dist * (1.65 + (Math.random() * 0.20))))
+    );
+
+    fx.style.setProperty("--flight-len", String(pathLen));
+    fx.style.setProperty("--flight-ms", `${duration}ms`);
+
+    fx.classList.remove("is-active");
+    void fx.offsetWidth;
+    fx.classList.add("is-active");
+
+    const easeInOut = (t) => 0.5 - (Math.cos(Math.PI * t) / 2);
+    const lookAhead = Math.min(0.03, Math.max(0.010, 26 / pathLen));
+
+    const startedAt = performance.now();
+
+    const step = (now) => {
+      const raw = Math.max(0, Math.min(1, (now - startedAt) / duration));
+      const eased = easeInOut(raw);
+
+      let point;
+      let ahead;
+
+      try {
+        point = glowPath.getPointAtLength(pathLen * eased);
+        ahead = glowPath.getPointAtLength(pathLen * Math.min(1, eased + lookAhead));
+      } catch(e) {
+        dust.style.opacity = "0";
+        mount._hifzGoodFlightRaf = 0;
+        return;
+      }
+
+      const angle = Math.atan2(ahead.y - point.y, ahead.x - point.x);
+      const alpha =
+        raw < 0.08
+          ? (raw / 0.08)
+          : (raw > 0.92 ? Math.max(0, (1 - raw) / 0.08) : 1);
+
+      const scale = 0.92 + (Math.sin(raw * Math.PI) * 0.18);
+
+      dust.style.left = `${point.x}px`;
+      dust.style.top = `${point.y}px`;
+      dust.style.opacity = String(alpha);
+      dust.style.transform = `translate(-50%, -50%) rotate(${angle}rad) scale(${scale})`;
+
+      if (raw < 1) {
+        mount._hifzGoodFlightRaf = requestAnimationFrame(step);
+      } else {
+        dust.style.opacity = "0";
+        mount._hifzGoodFlightRaf = 0;
+      }
+    };
+
+    mount._hifzGoodFlightTick = tick;
+    mount._hifzGoodFlightRaf = requestAnimationFrame(step);
+
+    mount._hifzGoodFlightArrivalTimer = setTimeout(() => {
+      try {
+        if (tick.isConnected) {
+          tick.classList.remove("is-good-arrival");
+          void tick.offsetWidth;
+          tick.classList.add("is-good-arrival");
+
+          setTimeout(() => {
+            try { tick.classList.remove("is-good-arrival"); } catch(e) {}
+          }, 460);
+        }
+      } catch(e) {}
+    }, Math.max(420, Math.round(duration * 0.88)));
+
+    mount._hifzGoodFlightClearTimer = setTimeout(() => {
+      clearHifzGoodFlightFx();
+    }, duration + 320);
+
+    return {
+      started:true,
+      arrivalDelay: Math.max(420, Math.round(duration * 0.88)),
+      totalDelay: duration + 120
+    };
+  };
+
+  const ensureHifzRecallFlightFx = () => {
+    let fx = document.querySelector(".hifzRecallFlightFx");
+    if (fx) return fx;
+
+    fx = document.createElement("div");
+    fx.className = "hifzRecallFlightFx";
+    fx.setAttribute("aria-hidden", "true");
+    fx.innerHTML = `
+      <svg class="hifzRecallFlightSvg" viewBox="0 0 1 1" preserveAspectRatio="none">
+        <path class="hifzRecallFlightGlowPath"></path>
+        <path class="hifzRecallFlightSparkPath"></path>
+      </svg>
+      <div class="hifzRecallFlightDust">
+        <span class="hifzRecallFlightDustCore"></span>
+        <span class="hifzRecallFlightDustMote is-a"></span>
+        <span class="hifzRecallFlightDustMote is-b"></span>
+        <span class="hifzRecallFlightDustMote is-c"></span>
+        <span class="hifzRecallFlightDustMote is-d"></span>
+      </div>
+    `;
+    document.body.appendChild(fx);
+    return fx;
+  };
+
+  const clearHifzRecallFlightFx = () => {
+    try { clearTimeout(Number(mount._hifzRecallFlightArrivalTimer || 0)); } catch(e) {}
+    try { clearTimeout(Number(mount._hifzRecallFlightClearTimer || 0)); } catch(e) {}
+    try {
+      if (typeof mount._hifzRecallFlightRaf === "number" && mount._hifzRecallFlightRaf) {
+        cancelAnimationFrame(mount._hifzRecallFlightRaf);
+      }
+    } catch(e) {}
+
+    const fx = document.querySelector(".hifzRecallFlightFx");
+    if (fx) {
+      fx.classList.remove("is-active");
+      fx.removeAttribute("data-kind");
+      fx.style.removeProperty("--flight-len");
+      fx.style.removeProperty("--flight-ms");
+
+      const dust = fx.querySelector(".hifzRecallFlightDust");
+      if (dust) {
+        dust.style.left = "0px";
+        dust.style.top = "0px";
+        dust.style.opacity = "0";
+        dust.style.transform = "translate(-50%, -50%)";
+      }
+    }
+
+    try {
+      if (mount._hifzRecallFlightTick && mount._hifzRecallFlightTick.isConnected) {
+        mount._hifzRecallFlightTick.classList.remove("is-good-arrival", "is-bad-arrival");
+      }
+    } catch(e) {}
+
+    mount._hifzRecallFlightTick = null;
+    mount._hifzRecallFlightArrivalTimer = 0;
+    mount._hifzRecallFlightClearTimer = 0;
+    mount._hifzRecallFlightRaf = 0;
+  };
+
+  const runHifzRecallFlightFromButton = (btn, ref, kind = "good") => {
+    const r = String(ref || "");
+    const markKind = String(kind || "").toLowerCase() === "bad" ? "bad" : "good";
+
+    if (!btn || !/^\d+:\d+$/.test(r)) {
+      return { started:false, arrivalDelay:0, totalDelay:340 };
+    }
+
+    const tickSelector = (typeof CSS !== "undefined" && typeof CSS.escape === "function")
+      ? `.suraTick[data-ref="${CSS.escape(r)}"]`
+      : `.suraTick[data-ref="${r.replace(/"/g, '\\"')}"]`;
+
+    const tick = document.querySelector(tickSelector);
+    if (!tick) {
+      return { started:false, arrivalDelay:0, totalDelay:340 };
+    }
+
+    const fx = ensureHifzRecallFlightFx();
+    clearHifzRecallFlightFx();
+
+    const svg = fx.querySelector(".hifzRecallFlightSvg");
+    const glowPath = fx.querySelector(".hifzRecallFlightGlowPath");
+    const sparkPath = fx.querySelector(".hifzRecallFlightSparkPath");
+    const dust = fx.querySelector(".hifzRecallFlightDust");
+
+    if (!svg || !glowPath || !sparkPath || !dust) {
+      return { started:false, arrivalDelay:0, totalDelay:340 };
+    }
+
+    const startRect = btn.getBoundingClientRect();
+    const endRect = tick.getBoundingClientRect();
+
+    const startX = startRect.left + (startRect.width * 0.50);
+    const startY = startRect.top + (startRect.height * 0.50);
+
+    const endX = endRect.left + (endRect.width * 0.50);
+    const endY = endRect.top + (endRect.height * 0.54);
+
+    const dx = endX - startX;
+    const dy = endY - startY;
+    const dist = Math.max(1, Math.hypot(dx, dy));
+
+    const rootCs = getComputedStyle(document.documentElement);
+    const stageH = parseFloat(rootCs.getPropertyValue("--stage-h")) || window.innerHeight;
+
+    const nx = -dy / dist;
+    const ny = dx / dist;
+
+    const bendSign = Math.random() < 0.5 ? -1 : 1;
+    const bendMain =
+      Math.min(Math.max(dist * 0.26, stageH * 0.10), stageH * 0.28) *
+      bendSign *
+      (0.85 + (Math.random() * 0.45));
+
+    const bendLate = bendMain * -(0.42 + (Math.random() * 0.30));
+
+    const liftBase = Math.min(Math.max(dist * 0.18, stageH * 0.06), stageH * 0.18);
+    const lift1 = liftBase * (0.95 + (Math.random() * 0.45));
+    const lift2 = liftBase * (0.25 + (Math.random() * 0.35));
+
+    const c1x = startX + (dx * (0.20 + (Math.random() * 0.08))) + (nx * bendMain);
+    const c1y = startY + (dy * 0.10) + (ny * bendMain) - lift1;
+
+    const c2x = startX + (dx * (0.72 + (Math.random() * 0.10))) + (nx * bendLate);
+    const c2y = startY + (dy * 0.86) + (ny * bendLate) - lift2;
+
+    const d = `M ${startX} ${startY} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${endX} ${endY}`;
+
+    svg.setAttribute("viewBox", `0 0 ${Math.max(1, window.innerWidth)} ${Math.max(1, window.innerHeight)}`);
+    glowPath.setAttribute("d", d);
+    sparkPath.setAttribute("d", d);
+
+    let pathLen = 1;
+    try {
+      pathLen = Math.max(1, glowPath.getTotalLength());
+    } catch(e) {
+      return { started:false, arrivalDelay:0, totalDelay:340 };
+    }
+
+    const duration = Math.round(
+      Math.min(1660, Math.max(1100, dist * (1.62 + (Math.random() * 0.20))))
+    );
+
+    fx.setAttribute("data-kind", markKind);
+    fx.style.setProperty("--flight-len", String(pathLen));
+    fx.style.setProperty("--flight-ms", `${duration}ms`);
+
+    fx.classList.remove("is-active");
+    void fx.offsetWidth;
+    fx.classList.add("is-active");
+
+    const easeInOut = (t) => 0.5 - (Math.cos(Math.PI * t) / 2);
+    const lookAhead = Math.min(0.03, Math.max(0.010, 26 / pathLen));
+    const startedAt = performance.now();
+
+    const step = (now) => {
+      const raw = Math.max(0, Math.min(1, (now - startedAt) / duration));
+      const eased = easeInOut(raw);
+
+      let point;
+      let ahead;
+
+      try {
+        point = glowPath.getPointAtLength(pathLen * eased);
+        ahead = glowPath.getPointAtLength(pathLen * Math.min(1, eased + lookAhead));
+      } catch(e) {
+        dust.style.opacity = "0";
+        mount._hifzRecallFlightRaf = 0;
+        return;
+      }
+
+      const angle = Math.atan2(ahead.y - point.y, ahead.x - point.x);
+      const alpha =
+        raw < 0.08
+          ? (raw / 0.08)
+          : (raw > 0.92 ? Math.max(0, (1 - raw) / 0.08) : 1);
+
+      const scale = 0.92 + (Math.sin(raw * Math.PI) * 0.18);
+
+      dust.style.left = `${point.x}px`;
+      dust.style.top = `${point.y}px`;
+      dust.style.opacity = String(alpha);
+      dust.style.transform = `translate(-50%, -50%) rotate(${angle}rad) scale(${scale})`;
+
+      if (raw < 1) {
+        mount._hifzRecallFlightRaf = requestAnimationFrame(step);
+      } else {
+        dust.style.opacity = "0";
+        mount._hifzRecallFlightRaf = 0;
+      }
+    };
+
+    const arrivalDelay = Math.max(430, Math.round(duration * 0.88));
+    const arrivalClass = markKind === "bad" ? "is-bad-arrival" : "is-good-arrival";
+    const arrivalClassMs = markKind === "bad" ? 560 : 460;
+
+    mount._hifzRecallFlightTick = tick;
+    mount._hifzRecallFlightRaf = requestAnimationFrame(step);
+
+    mount._hifzRecallFlightArrivalTimer = setTimeout(() => {
+      try {
+        if (tick.isConnected) {
+          tick.classList.remove("is-good-arrival", "is-bad-arrival");
+          void tick.offsetWidth;
+          tick.classList.add(arrivalClass);
+
+          setTimeout(() => {
+            try { tick.classList.remove("is-good-arrival", "is-bad-arrival"); } catch(e) {}
+          }, arrivalClassMs);
+        }
+      } catch(e) {}
+    }, arrivalDelay);
+
+    mount._hifzRecallFlightClearTimer = setTimeout(() => {
+      clearHifzRecallFlightFx();
+    }, duration + 360);
+
+    return {
+      started:true,
+      arrivalDelay,
+      totalDelay: duration + 140
+    };
+  };
+
   mount.addEventListener("click", (e) => {
     const writeShell = e.target.closest("[data-hifz-write-shell]");
     if (writeShell) {
@@ -12321,7 +12809,6 @@ const handleWriteRawInput = (input, rawValue) => {
     if (!/^\d+:\d+$/.test(ref)) return;
     if (!(mark === "good" || mark === "bad")) return;
 
-    setHifzResultForRef(ref, hifzStageValue, mark);
     setHifzAyahRevealed(ref, false);
     setWriteResultFlash(ref, "");
 
@@ -12353,7 +12840,21 @@ const handleWriteRawInput = (input, rawValue) => {
       });
     };
 
-    setTimeout(goNext, 340);
+    const flight = runHifzRecallFlightFromButton(btn, ref, mark);
+
+    if (flight.started) {
+      setTimeout(() => {
+        setHifzResultForRef(ref, hifzStageValue, mark);
+        try { window.__suraProgRefresh?.(); } catch(e) {}
+      }, flight.arrivalDelay);
+
+      setTimeout(goNext, flight.totalDelay);
+      return;
+    }
+
+    clearHifzRecallFlightFx();
+    setHifzResultForRef(ref, hifzStageValue, mark);
+    setTimeout(goNext, mark === "bad" ? 380 : 340);
   });
 
   mount.addEventListener("input", (e) => {
@@ -12562,6 +13063,16 @@ if (contBtn) {
   if (typeof surahPlaying !== "undefined" && surahPlaying && Number(surahPlaying) === s) {
     try { startSurahPlayback(s, { fromAyah: ay, btn: document.getElementById("playStop") }); } catch {}
   }
+  return;
+}
+
+    const stageTrendToggleBtn = t?.closest?.('[data-action="toggleStageTrendCollapse"]');
+if (stageTrendToggleBtn) {
+  ev.preventDefault();
+  ev.stopPropagation();
+
+  saveHifzStageTrendCollapsed(!loadHifzStageTrendCollapsed());
+  applyHifzStageTrendCollapsedUi(view);
   return;
 }
 
@@ -13892,6 +14403,16 @@ renderChunk();
         }
 
         renderCurrent(currentRef);
+        return;
+      }
+
+      const stageTrendToggleBtn = e.target.closest?.('[data-action="toggleStageTrendCollapse"]');
+      if (stageTrendToggleBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        saveHifzStageTrendCollapsed(!loadHifzStageTrendCollapsed());
+        applyHifzStageTrendCollapsedUi(view);
         return;
       }
 

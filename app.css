@@ -9072,6 +9072,732 @@ html.rotate-phone .hifzRangeInput{
   transform:translateY(calc(var(--u1h) * -0.08));
 }
 
+.hifzRecallFlightFx{
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+  z-index:99050;
+  opacity:0;
+  --flight-len: 1;
+  --flight-ms: 1280ms;
+  --flight-rgb: var(--rgb-ok);
+}
+
+.hifzRecallFlightFx[data-kind="good"]{
+  --flight-rgb: var(--rgb-ok);
+}
+
+.hifzRecallFlightFx[data-kind="bad"]{
+  --flight-rgb: var(--rgb-danger);
+}
+
+.hifzRecallFlightFx.is-active{
+  opacity:1;
+}
+
+.hifzRecallFlightSvg{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  overflow:visible;
+}
+
+.hifzRecallFlightGlowPath,
+.hifzRecallFlightSparkPath{
+  fill:none;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+  stroke-dasharray:var(--flight-len);
+  stroke-dashoffset:var(--flight-len);
+  opacity:0;
+}
+
+.hifzRecallFlightGlowPath{
+  stroke:rgba(var(--flight-rgb),0.28);
+  stroke-width:max(calc(var(--stage-h) * 0.0105), var(--u6h));
+}
+
+.hifzRecallFlightSparkPath{
+  stroke:rgba(var(--rgb-white),0.92);
+  stroke-width:max(calc(var(--stage-h) * 0.0028), var(--u2h));
+  stroke-dasharray:
+    calc(var(--flight-len) * 0.020)
+    calc(var(--flight-len) * 0.034);
+}
+
+.hifzRecallFlightFx.is-active .hifzRecallFlightGlowPath{
+  animation:hifzRecallPathGlow var(--flight-ms) cubic-bezier(0.23, 0.78, 0.20, 1) 1 both;
+}
+
+.hifzRecallFlightFx.is-active .hifzRecallFlightSparkPath{
+  animation:hifzRecallPathSpark var(--flight-ms) cubic-bezier(0.23, 0.78, 0.20, 1) 1 both;
+}
+
+.hifzRecallFlightDust{
+  position:fixed;
+  left:0;
+  top:0;
+  width:calc(var(--stage-h) * 0.040);
+  height:calc(var(--stage-h) * 0.040);
+  transform:translate(-50%, -50%);
+  opacity:0;
+  will-change:transform,left,top,opacity;
+}
+
+.hifzRecallFlightDustCore,
+.hifzRecallFlightDustMote{
+  position:absolute;
+  border-radius:var(--round-pill);
+  pointer-events:none;
+}
+
+.hifzRecallFlightDustCore{
+  left:50%;
+  top:50%;
+  width:calc(var(--stage-h) * 0.018);
+  height:calc(var(--stage-h) * 0.018);
+  transform:translate(-50%, -50%);
+  background:
+    radial-gradient(
+      circle at 38% 38%,
+      rgba(var(--rgb-white),0.98) 0%,
+      rgba(var(--rgb-white),0.84) 16%,
+      rgba(var(--flight-rgb),0.92) 34%,
+      rgba(var(--flight-rgb),0.44) 62%,
+      rgba(var(--rgb-white),0.00) 82%
+    );
+  box-shadow:
+    0 0 calc(var(--glow-ring) * 1.4) rgba(var(--flight-rgb),0.68),
+    0 0 calc(var(--glow-soft) * 0.72) rgba(var(--flight-rgb),0.34);
+}
+
+.hifzRecallFlightDustCore::before,
+.hifzRecallFlightDustCore::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius:inherit;
+  pointer-events:none;
+}
+
+.hifzRecallFlightDustCore::before{
+  transform:scale(1.55, 0.62) translateX(calc(var(--u6w) * -0.55));
+  transform-origin:center;
+  background:
+    radial-gradient(
+      circle at 70% 50%,
+      rgba(var(--flight-rgb),0.30) 0%,
+      rgba(var(--flight-rgb),0.16) 34%,
+      rgba(var(--rgb-white),0.00) 76%
+    );
+  filter:blur(calc(var(--u2h) * 1.2));
+}
+
+.hifzRecallFlightDustCore::after{
+  transform:scale(2.2);
+  background:
+    radial-gradient(
+      circle,
+      rgba(var(--flight-rgb),0.18) 0%,
+      rgba(var(--flight-rgb),0.08) 38%,
+      rgba(var(--rgb-white),0.00) 72%
+    );
+}
+
+.hifzRecallFlightDustMote{
+  width:calc(var(--stage-h) * 0.0075);
+  height:calc(var(--stage-h) * 0.0075);
+  background:
+    radial-gradient(
+      circle,
+      rgba(var(--rgb-white),0.96) 0%,
+      rgba(var(--flight-rgb),0.88) 34%,
+      rgba(var(--rgb-white),0.00) 72%
+    );
+  box-shadow:
+    0 0 calc(var(--glow-ring) * 0.95) rgba(var(--flight-rgb),0.48),
+    0 0 calc(var(--glow-soft) * 0.24) rgba(var(--flight-rgb),0.22);
+  animation:hifzRecallDustTwinkle 680ms ease-in-out infinite alternate;
+}
+
+.hifzRecallFlightDustMote.is-a{
+  left:18%;
+  top:24%;
+  animation-delay:-120ms;
+}
+
+.hifzRecallFlightDustMote.is-b{
+  left:70%;
+  top:16%;
+  animation-delay:-300ms;
+}
+
+.hifzRecallFlightDustMote.is-c{
+  left:78%;
+  top:62%;
+  animation-delay:-220ms;
+}
+
+.hifzRecallFlightDustMote.is-d{
+  left:22%;
+  top:72%;
+  animation-delay:-420ms;
+}
+
+.suraTick.is-good-arrival{
+  z-index:6;
+  animation:hifzGoodTickArrival 460ms ease-out 1;
+}
+
+.suraTick.is-good-arrival::before{
+  box-shadow:
+    inset 0 calc(var(--u6h) * 0.36) calc(var(--u8h) * 0.72) rgba(var(--rgb-white),0.14),
+    inset 0 calc(var(--u6h) * -0.24) calc(var(--u8h) * 0.72) rgba(var(--rgb-black),0.14),
+    0 0 calc(var(--glow-ring) * 1.40) rgba(var(--rgb-ok),0.54),
+    0 0 calc(var(--glow-soft) * 0.72) rgba(var(--rgb-ok),0.26);
+}
+
+.suraTick.is-bad-arrival{
+  z-index:6;
+  animation:hifzBadTickArrival 560ms ease-out 1;
+}
+
+.suraTick.is-bad-arrival::after{
+  content:"";
+  position:absolute;
+  top:-12%;
+  bottom:-12%;
+  left:50%;
+  width:max(calc(var(--stage-w) * 0.008), var(--u6w));
+  transform:translateX(calc(-50% - (100% * 4.2))) skewX(-18deg);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(var(--rgb-white),0.00) 0%,
+      rgba(var(--rgb-danger),0.92) 18%,
+      rgba(var(--rgb-danger),0.52) 58%,
+      rgba(var(--rgb-white),0.00) 100%
+    );
+  box-shadow:
+    0 0 calc(var(--glow-ring) * 1.25) rgba(var(--rgb-danger),0.52),
+    0 0 calc(var(--glow-soft) * 0.62) rgba(var(--rgb-danger),0.24);
+  pointer-events:none;
+  z-index:6;
+  animation:hifzBadTickSlice 560ms cubic-bezier(0.23, 0.78, 0.20, 1) 1;
+}
+
+@keyframes hifzRecallPathGlow{
+  0%{
+    opacity:0;
+    stroke-dashoffset:var(--flight-len);
+  }
+  10%{
+    opacity:0.95;
+  }
+  78%{
+    opacity:0.72;
+  }
+  100%{
+    opacity:0;
+    stroke-dashoffset:0;
+  }
+}
+
+@keyframes hifzRecallPathSpark{
+  0%{
+    opacity:0;
+    stroke-dashoffset:var(--flight-len);
+  }
+  14%{
+    opacity:0.95;
+  }
+  72%{
+    opacity:0.86;
+  }
+  100%{
+    opacity:0;
+    stroke-dashoffset:0;
+  }
+}
+
+@keyframes hifzRecallDustTwinkle{
+  0%{
+    opacity:0.42;
+    transform:scale(0.78);
+  }
+  100%{
+    opacity:1;
+    transform:scale(1.18);
+  }
+}
+
+@keyframes hifzGoodTickArrival{
+  0%{
+    box-shadow:none;
+  }
+  46%{
+    box-shadow:
+      0 0 calc(var(--glow-ring) * 1.30) rgba(var(--rgb-ok),0.48),
+      0 0 calc(var(--glow-soft) * 0.66) rgba(var(--rgb-ok),0.24);
+  }
+  100%{
+    box-shadow:none;
+  }
+}
+
+@keyframes hifzBadTickArrival{
+  0%{
+    box-shadow:none;
+  }
+  46%{
+    box-shadow:
+      0 0 calc(var(--glow-ring) * 1.30) rgba(var(--rgb-danger),0.48),
+      0 0 calc(var(--glow-soft) * 0.66) rgba(var(--rgb-danger),0.24);
+  }
+  100%{
+    box-shadow:none;
+  }
+}
+
+@keyframes hifzBadTickSlice{
+  0%{
+    opacity:0;
+    transform:translateX(calc(-50% - (100% * 4.2))) skewX(-18deg) scaleY(0.72);
+  }
+  18%{
+    opacity:1;
+  }
+  82%{
+    opacity:1;
+    transform:translateX(calc(-50% + (100% * 4.2))) skewX(-18deg) scaleY(1);
+  }
+  100%{
+    opacity:0;
+    transform:translateX(calc(-50% + (100% * 5.8))) skewX(-18deg) scaleY(1);
+  }
+}
+
+.hifzGoodFlightFx{
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+  z-index:99050;
+  opacity:0;
+  --flight-len: 1;
+  --flight-ms: 1280ms;
+}
+
+.hifzGoodFlightFx.is-active{
+  opacity:1;
+}
+
+.hifzGoodFlightSvg{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  overflow:visible;
+}
+
+.hifzGoodFlightGlowPath,
+.hifzGoodFlightSparkPath{
+  fill:none;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+  stroke-dasharray:var(--flight-len);
+  stroke-dashoffset:var(--flight-len);
+  opacity:0;
+}
+
+.hifzGoodFlightGlowPath{
+  stroke:rgba(var(--rgb-ok),0.26);
+  stroke-width:max(calc(var(--stage-h) * 0.0105), var(--u6h));
+}
+
+.hifzGoodFlightSparkPath{
+  stroke:rgba(var(--rgb-white),0.92);
+  stroke-width:max(calc(var(--stage-h) * 0.0028), var(--u2h));
+  stroke-dasharray:
+    calc(var(--flight-len) * 0.020)
+    calc(var(--flight-len) * 0.034);
+}
+
+.hifzGoodFlightFx.is-active .hifzGoodFlightGlowPath{
+  animation:hifzGoodPathGlow var(--flight-ms) cubic-bezier(0.23, 0.78, 0.20, 1) 1 both;
+}
+
+.hifzGoodFlightFx.is-active .hifzGoodFlightSparkPath{
+  animation:hifzGoodPathSpark var(--flight-ms) cubic-bezier(0.23, 0.78, 0.20, 1) 1 both;
+}
+
+.hifzGoodFlightDust{
+  position:fixed;
+  left:0;
+  top:0;
+  width:calc(var(--stage-h) * 0.040);
+  height:calc(var(--stage-h) * 0.040);
+  transform:translate(-50%, -50%);
+  opacity:0;
+  will-change:transform,left,top,opacity;
+}
+
+.hifzGoodFlightDustCore,
+.hifzGoodFlightDustMote{
+  position:absolute;
+  border-radius:var(--round-pill);
+  pointer-events:none;
+}
+
+.hifzGoodFlightDustCore{
+  left:50%;
+  top:50%;
+  width:calc(var(--stage-h) * 0.018);
+  height:calc(var(--stage-h) * 0.018);
+  transform:translate(-50%, -50%);
+  background:
+    radial-gradient(
+      circle at 38% 38%,
+      rgba(var(--rgb-white),0.98) 0%,
+      rgba(var(--rgb-white),0.84) 16%,
+      rgba(var(--rgb-ok),0.92) 34%,
+      rgba(var(--rgb-ok),0.44) 62%,
+      rgba(var(--rgb-white),0.00) 82%
+    );
+  box-shadow:
+    0 0 calc(var(--glow-ring) * 1.4) rgba(var(--rgb-ok),0.68),
+    0 0 calc(var(--glow-soft) * 0.72) rgba(var(--rgb-ok),0.34);
+}
+
+.hifzGoodFlightDustCore::before,
+.hifzGoodFlightDustCore::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius:inherit;
+  pointer-events:none;
+}
+
+.hifzGoodFlightDustCore::before{
+  transform:scale(1.55, 0.62) translateX(calc(var(--u6w) * -0.55));
+  transform-origin:center;
+  background:
+    radial-gradient(
+      circle at 70% 50%,
+      rgba(var(--rgb-ok),0.30) 0%,
+      rgba(var(--rgb-ok),0.16) 34%,
+      rgba(var(--rgb-white),0.00) 76%
+    );
+  filter:blur(calc(var(--u2h) * 1.2));
+}
+
+.hifzGoodFlightDustCore::after{
+  transform:scale(2.2);
+  background:
+    radial-gradient(
+      circle,
+      rgba(var(--rgb-ok),0.18) 0%,
+      rgba(var(--rgb-ok),0.08) 38%,
+      rgba(var(--rgb-white),0.00) 72%
+    );
+}
+
+.hifzGoodFlightDustMote{
+  width:calc(var(--stage-h) * 0.0075);
+  height:calc(var(--stage-h) * 0.0075);
+  background:
+    radial-gradient(
+      circle,
+      rgba(var(--rgb-white),0.96) 0%,
+      rgba(var(--rgb-ok),0.88) 34%,
+      rgba(var(--rgb-white),0.00) 72%
+    );
+  box-shadow:
+    0 0 calc(var(--glow-ring) * 0.95) rgba(var(--rgb-ok),0.48),
+    0 0 calc(var(--glow-soft) * 0.24) rgba(var(--rgb-ok),0.22);
+  animation:hifzGoodDustTwinkle 680ms ease-in-out infinite alternate;
+}
+
+.hifzGoodFlightDustMote.is-a{
+  left:18%;
+  top:24%;
+  animation-delay:-120ms;
+}
+
+.hifzGoodFlightDustMote.is-b{
+  left:70%;
+  top:16%;
+  animation-delay:-300ms;
+}
+
+.hifzGoodFlightDustMote.is-c{
+  left:78%;
+  top:62%;
+  animation-delay:-220ms;
+}
+
+.hifzGoodFlightDustMote.is-d{
+  left:22%;
+  top:72%;
+  animation-delay:-420ms;
+}
+
+.suraTick.is-good-arrival{
+  z-index:6;
+  animation:hifzGoodTickArrival 460ms ease-out 1;
+}
+
+.suraTick.is-good-arrival::before{
+  box-shadow:
+    inset 0 calc(var(--u6h) * 0.36) calc(var(--u8h) * 0.72) rgba(var(--rgb-white),0.14),
+    inset 0 calc(var(--u6h) * -0.24) calc(var(--u8h) * 0.72) rgba(var(--rgb-black),0.14),
+    0 0 calc(var(--glow-ring) * 1.40) rgba(var(--rgb-ok),0.54),
+    0 0 calc(var(--glow-soft) * 0.72) rgba(var(--rgb-ok),0.26);
+}
+
+@keyframes hifzGoodPathGlow{
+  0%{
+    opacity:0;
+    stroke-dashoffset:var(--flight-len);
+  }
+  10%{
+    opacity:0.95;
+  }
+  78%{
+    opacity:0.72;
+  }
+  100%{
+    opacity:0;
+    stroke-dashoffset:0;
+  }
+}
+
+@keyframes hifzGoodPathSpark{
+  0%{
+    opacity:0;
+    stroke-dashoffset:var(--flight-len);
+  }
+  14%{
+    opacity:0.95;
+  }
+  72%{
+    opacity:0.86;
+  }
+  100%{
+    opacity:0;
+    stroke-dashoffset:0;
+  }
+}
+
+@keyframes hifzGoodDustTwinkle{
+  0%{
+    opacity:0.42;
+    transform:scale(0.78);
+  }
+  100%{
+    opacity:1;
+    transform:scale(1.18);
+  }
+}
+
+@keyframes hifzGoodTickArrival{
+  0%{
+    box-shadow:none;
+  }
+  46%{
+    box-shadow:
+      0 0 calc(var(--glow-ring) * 1.30) rgba(var(--rgb-ok),0.48),
+      0 0 calc(var(--glow-soft) * 0.66) rgba(var(--rgb-ok),0.24);
+  }
+  100%{
+    box-shadow:none;
+  }
+}
+
+.hifzGoodFlightFx{
+  --fx-x: 0px;
+  --fx-y: 0px;
+  --fx-dx: 0px;
+  --fx-dy: 0px;
+  --fx-dist: 0px;
+  --fx-angle: 0rad;
+
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+  z-index:99050;
+  opacity:0;
+}
+
+.hifzGoodFlightFx.is-active{
+  opacity:1;
+}
+
+.hifzGoodFlightTrail{
+  position:absolute;
+  left:var(--fx-x);
+  top:var(--fx-y);
+  width:var(--fx-dist);
+  height:max(var(--u2h), calc(var(--stage-h) * 0.006));
+  transform-origin:left center;
+  transform:translateY(-50%) rotate(var(--fx-angle)) scaleX(0.08);
+  border-radius:var(--round-pill);
+  opacity:0;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(var(--rgb-white),0.00) 0%,
+      rgba(var(--rgb-ok),0.16) 18%,
+      rgba(var(--rgb-ok),0.48) 58%,
+      rgba(var(--rgb-ok),0.86) 84%,
+      rgba(var(--rgb-white),0.00) 100%
+    );
+
+  box-shadow:
+    0 0 calc(var(--glow-ring) * 1.12) rgba(var(--rgb-ok),0.42),
+    0 0 calc(var(--glow-soft) * 0.52) rgba(var(--rgb-ok),0.22);
+}
+
+.hifzGoodFlightTrail::after{
+  content:"";
+  position:absolute;
+  inset:calc(var(--u4h) * -1.2) 0;
+  border-radius:inherit;
+  opacity:0.95;
+  background:
+    radial-gradient(circle at 18% 50%, rgba(var(--rgb-white),0.00) 0 34%, rgba(var(--rgb-ok),0.24) 36%, rgba(var(--rgb-white),0.00) 49%),
+    radial-gradient(circle at 38% 50%, rgba(var(--rgb-white),0.00) 0 34%, rgba(var(--rgb-ok),0.28) 36%, rgba(var(--rgb-white),0.00) 50%),
+    radial-gradient(circle at 60% 50%, rgba(var(--rgb-white),0.00) 0 34%, rgba(var(--rgb-ok),0.24) 36%, rgba(var(--rgb-white),0.00) 49%),
+    radial-gradient(circle at 82% 50%, rgba(var(--rgb-white),0.00) 0 34%, rgba(var(--rgb-ok),0.32) 36%, rgba(var(--rgb-white),0.00) 50%);
+}
+
+.hifzGoodFlightHead{
+  position:absolute;
+  left:var(--fx-x);
+  top:var(--fx-y);
+  width:calc(var(--stage-h) * 0.024);
+  height:calc(var(--stage-h) * 0.024);
+  border-radius:var(--round-pill);
+  transform:translate(-50%, -50%);
+  opacity:0;
+
+  background:
+    radial-gradient(
+      circle at 40% 38%,
+      rgba(var(--rgb-white),0.98) 0%,
+      rgba(var(--rgb-white),0.86) 14%,
+      rgba(var(--rgb-ok),0.90) 34%,
+      rgba(var(--rgb-ok),0.34) 62%,
+      rgba(var(--rgb-white),0.00) 78%
+    );
+
+  box-shadow:
+    0 0 calc(var(--glow-ring) * 1.60) rgba(var(--rgb-ok),0.62),
+    0 0 calc(var(--glow-soft) * 0.86) rgba(var(--rgb-ok),0.32);
+}
+
+.hifzGoodFlightHead::before,
+.hifzGoodFlightHead::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius:inherit;
+  pointer-events:none;
+}
+
+.hifzGoodFlightHead::before{
+  box-shadow:
+    calc(var(--u10w) * -0.9) calc(var(--u8h) * -0.5) 0 0 rgba(var(--rgb-ok),0.72),
+    calc(var(--u10w) * -0.2) calc(var(--u8h) * 0.8) 0 0 rgba(var(--rgb-white),0.72),
+    calc(var(--u10w) * 0.8) calc(var(--u8h) * -0.1) 0 0 rgba(var(--rgb-ok),0.68),
+    calc(var(--u10w) * 1.4) calc(var(--u8h) * 0.5) 0 0 rgba(var(--rgb-ok),0.52);
+}
+
+.hifzGoodFlightHead::after{
+  box-shadow:
+    calc(var(--u12w) * -1.2) 0 0 calc(var(--u1h) * 0.9) rgba(var(--rgb-ok),0.38),
+    calc(var(--u12w) * 0.9) calc(var(--u8h) * -0.8) 0 calc(var(--u1h) * 0.9) rgba(var(--rgb-white),0.30),
+    calc(var(--u12w) * 1.5) calc(var(--u8h) * 0.7) 0 calc(var(--u1h) * 0.9) rgba(var(--rgb-ok),0.26);
+}
+
+.hifzGoodFlightFx.is-active .hifzGoodFlightTrail{
+  animation:hifzGoodTrailFly 520ms cubic-bezier(0.22, 0.88, 0.22, 1) 1;
+}
+
+.hifzGoodFlightFx.is-active .hifzGoodFlightHead{
+  animation:hifzGoodHeadFly 520ms cubic-bezier(0.22, 0.88, 0.22, 1) 1;
+}
+
+.suraTick.is-good-arrival{
+  z-index:6;
+  animation:hifzGoodTickArrival 260ms ease-out 1;
+}
+
+.suraTick.is-good-arrival::after{
+  background:rgba(var(--rgb-ok),0.84);
+  width:max(var(--u1w), calc(var(--stage-w) * 0.0017));
+  transform:translateX(-50%);
+}
+
+@keyframes hifzGoodTrailFly{
+  0%{
+    opacity:0;
+    transform:translateY(-50%) rotate(var(--fx-angle)) scaleX(0.08);
+  }
+  12%{
+    opacity:1;
+    transform:translateY(-50%) rotate(var(--fx-angle)) scaleX(0.18);
+  }
+  68%{
+    opacity:1;
+    transform:translateY(-50%) rotate(var(--fx-angle)) scaleX(0.96);
+  }
+  100%{
+    opacity:0;
+    transform:translateY(-50%) rotate(var(--fx-angle)) scaleX(1.02);
+  }
+}
+
+@keyframes hifzGoodHeadFly{
+  0%{
+    opacity:0;
+    transform:translate(-50%, -50%) scale(0.24);
+  }
+  10%{
+    opacity:1;
+    transform:translate(-50%, -50%) scale(0.92);
+  }
+  82%{
+    opacity:1;
+    transform:translate(
+      calc(-50% + var(--fx-dx)),
+      calc(-50% + var(--fx-dy))
+    ) scale(1.00);
+  }
+  100%{
+    opacity:0;
+    transform:translate(
+      calc(-50% + var(--fx-dx)),
+      calc(-50% + var(--fx-dy))
+    ) scale(0.88);
+  }
+}
+
+@keyframes hifzGoodTickArrival{
+  0%{
+    box-shadow:none;
+  }
+  42%{
+    box-shadow:
+      0 0 calc(var(--glow-ring) * 1.18) rgba(var(--rgb-ok),0.46),
+      0 0 calc(var(--glow-soft) * 0.58) rgba(var(--rgb-ok),0.22);
+  }
+  100%{
+    box-shadow:none;
+  }
+}
+
 .hifzRecallBtn:hover{
   transform:translateY(calc(var(--u1h) * -1));
 }
@@ -10281,19 +11007,50 @@ html[data-theme="light"] .hifzBadDropMenu{
   gap: calc(var(--stage-h) * 0.010);
 }
 
+.hifzStageTrendCard.is-collapsed{
+  min-height: calc(var(--stage-h) * 0.053);
+}
+
 .hifzStageTrendHeader{
   width:100%;
-  display:flex;
+  display:grid;
+  grid-template-columns:1fr auto 1fr;
+  align-items:center;
+  column-gap: calc(var(--stage-w) * 0.010);
+  min-height: calc(var(--stage-h) * 0.022);
+}
+
+.hifzStageTrendHeaderSide{
+  min-width:0;
+}
+
+.hifzStageTrendToggle{
+  appearance:none;
+  -webkit-appearance:none;
+  border:0;
+  background:transparent;
+  color:var(--color-text);
+  padding:0;
+  margin:0;
+  display:inline-flex;
   align-items:center;
   justify-content:center;
-  min-height: calc(var(--stage-h) * 0.022);
+  gap: calc(var(--stage-w) * 0.0045);
+  justify-self:center;
+  cursor:pointer;
+  min-height: calc(var(--stage-h) * 0.028);
+}
+
+.hifzStageTrendToggle:focus-visible{
+  outline: var(--u1h) solid var(--c-a-85);
+  outline-offset: calc(var(--u2h) * 1.2);
+  border-radius: calc(var(--stage-h) * 0.006);
 }
 
 .hifzStageTrendTitle{
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  width:100%;
   text-align:center;
   font-family:var(--font-meta);
   font-size: calc(var(--ayah-font-meta) * 0.96);
@@ -10301,6 +11058,57 @@ html[data-theme="light"] .hifzBadDropMenu{
   line-height:1.1;
   opacity:0.92;
   letter-spacing: calc(var(--stage-w) * 0.00045);
+}
+
+.hifzStageTrendArrow{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  font-family:var(--font-meta);
+  font-size: calc(var(--ayah-font-meta) * 0.94);
+  line-height:1;
+  opacity:0.82;
+  transform: rotate(0deg);
+  transition: transform 180ms ease, opacity 180ms ease;
+}
+
+.hifzStageTrendToggle:hover .hifzStageTrendArrow{
+  opacity:1;
+}
+
+.hifzStageTrendCard.is-collapsed .hifzStageTrendArrow{
+  transform: rotate(180deg);
+}
+
+.hifzStageTrendHeaderMeta{
+  justify-self:end;
+  display:inline-flex;
+  align-items:center;
+  gap:calc(var(--stage-w) * 0.0042);
+  font-family:var(--font-meta);
+  font-size:calc(var(--ayah-font-meta) * 0.76);
+  font-weight:700;
+  line-height:1;
+  color:var(--color-text);
+  white-space:nowrap;
+}
+
+.hifzStageTrendHeaderMetaLabel{
+  opacity:0.72;
+}
+
+.hifzStageTrendHeaderScore{
+  font-size:calc(var(--ayah-font-meta) * 0.86);
+}
+
+.hifzStageTrendBody{
+  display:flex;
+  flex-direction:column;
+  gap: calc(var(--stage-h) * 0.010);
+}
+
+.hifzStageTrendCard.is-collapsed .hifzStageTrendBody{
+  display:none;
 }
 
 .hifzStageTrendFrame{
