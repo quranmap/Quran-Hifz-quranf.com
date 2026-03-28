@@ -2339,6 +2339,7 @@ html[data-theme="light"] .viewToggleBtn .viewIcon{
 );
   overflow-y:auto;
   -webkit-overflow-scrolling: touch;
+  overflow-anchor: none;
 
   box-sizing: border-box;
   padding-inline: 0;
@@ -2605,8 +2606,119 @@ html[data-theme="light"] .mChunk.is-train-hidden:hover .mText{
   display: none;
 }
 
-html[data-theme="light"] .mChunk.is-train-hidden.is-train-first-hint .mText::after{
-  display: none;
+.mChunk.is-train-writing{
+  display:inline-block;
+  vertical-align:baseline;
+  max-width:100%;
+}
+
+.mChunk.is-train-writing .mText{
+  display:inline-block;
+  vertical-align:baseline;
+  max-width:100%;
+}
+
+.mChunk.is-train-writing .hifzTrainInlineWrite{
+  display:inline-block;
+  vertical-align:middle;
+  width:fit-content;
+  max-width:100%;
+}
+
+.mChunk.is-train-writing .hifzWriteStageBox{
+  display:inline-block;
+  vertical-align:middle;
+  width:fit-content;
+  max-width:100%;
+}
+
+.mChunk.is-train-writing .hifzWriteInputShell{
+  display:inline-block;
+  width:fit-content;
+  max-width:100%;
+  min-height:calc(var(--stage-h) * 0.072);
+  margin-right:0;
+  vertical-align:middle;
+  border-color:var(--c-a-45);
+  box-shadow:
+    inset 0 0 0 var(--u1h) var(--c-w-10),
+    0 0 0 calc(var(--glow-ring) * 1.35) var(--c-a-28),
+    0 0 calc(var(--glow-soft) * 0.95) var(--c-a-38);
+}
+
+.mChunk.is-train-writing .hifzWriteInputShell:focus-within{
+  border-color:var(--c-a-65);
+  box-shadow:
+    inset 0 0 0 var(--u1h) var(--c-w-12),
+    0 0 0 calc(var(--glow-ring) * 1.55) var(--c-a-35),
+    0 0 calc(var(--glow-soft) * 1.15) var(--c-a-45);
+}
+
+.mChunk.is-train-writing .hifzWriteInput,
+.mChunk.is-train-writing .hifzWriteInputView{
+  min-height:calc(var(--stage-h) * 0.072);
+  padding:
+    calc(var(--stage-h) * 0.009)
+    0
+    calc(var(--stage-h) * 0.014)
+    0;
+}
+
+.mChunk.is-train-writing .hifzWriteTextGhost,
+.mChunk.is-train-writing .hifzWriteTextReveal{
+  display:inline-block;
+  width:auto;
+  max-width:100%;
+}
+
+.mChunk.is-train-writing .hifzWriteMetaRow{
+  justify-content:flex-end;
+  gap:calc(var(--stage-w) * 0.006);
+}
+
+.mChunk.is-train-writing .hifzWriteInputHint{
+  font-size:calc(var(--ayah-font-meta) * 0.82);
+}
+
+.mChunk.is-train-writing .mNo{
+  vertical-align:baseline;
+  border-color:var(--c-a-65);
+  box-shadow:
+    0 0 0 calc(var(--glow-ring) * 1.35) var(--c-a-28),
+    0 0 calc(var(--glow-soft) * 1.05) var(--c-a-45),
+    0 0 calc(var(--glow-soft) * 1.40) rgba(var(--rgb-accent),0.26);
+}
+
+.mTrainLastWrongBadge{
+  position:absolute;
+  left:50%;
+  bottom:calc(100% - calc(var(--stage-h) * 0.008));
+  transform:translateX(-50%);
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:calc(var(--stage-w) * 0.016);
+  min-height:calc(var(--stage-h) * 0.022);
+  padding:0 calc(var(--stage-w) * 0.0045);
+  border-radius:var(--round-pill);
+  background:rgba(var(--rgb-danger),0.16);
+  color:rgb(var(--rgb-danger));
+  font-family:var(--font-ar);
+  font-size:calc(var(--ayah-font-ar) * 0.42);
+  line-height:1;
+  white-space:nowrap;
+  pointer-events:none;
+  box-shadow:
+    0 0 0 calc(var(--glow-ring) * 0.72) rgba(var(--rgb-danger),0.10),
+    0 0 calc(var(--glow-soft) * 0.42) rgba(var(--rgb-danger),0.18);
+  z-index:3;
+}
+
+.mTrainLastWrongBadge.is-space{
+  color:transparent;
+  min-width:calc(var(--stage-w) * 0.014);
+  min-height:calc(var(--stage-h) * 0.014);
+  padding:0;
 }
 
 .mNo{
@@ -6148,6 +6260,203 @@ html[data-theme="light"] .mNo:hover{
     transparent calc(100% - calc(var(--u1h) * 5)),
     #000 calc(100% - calc(var(--u1h) * 5))
   );
+}
+
+/* =========================
+   Mushaf Trainer: 1/3 rate flight fx
+   ========================= */
+
+.trainRateFxLayer{
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 999990;
+}
+
+.trainRateFlight,
+.trainRateBurst{
+  position: fixed;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  will-change: transform, opacity, filter;
+}
+
+.trainRateFlight{
+  width: calc(var(--stage-h) * 0.19);
+  height: calc(var(--stage-h) * 0.19);
+  opacity: 0;
+  --train-rate-angle: -26deg;
+  --train-rate-len: calc(var(--stage-h) * 0.24);
+  --train-rate-rgb: var(--rgb-ok);
+}
+
+.trainRateFlight::before,
+.trainRateFlight::after{
+  content: "";
+  position: absolute;
+  border-radius: var(--round-pill);
+}
+
+.trainRateFlight::before{
+  inset: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(
+      circle at center,
+      rgba(var(--train-rate-rgb),0.96) 0%,
+      rgba(var(--train-rate-rgb),0.42) 30%,
+      rgba(var(--train-rate-rgb),0.00) 74%
+    );
+  filter: blur(calc(var(--u3h) * 2));
+}
+
+.trainRateFlight::after{
+  left: 50%;
+  top: 50%;
+  width: var(--train-rate-len);
+  height: calc(var(--u2h) * 4);
+  transform: translateY(-50%) rotate(var(--train-rate-angle));
+  transform-origin: left center;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(var(--train-rate-rgb),0.98) 0%,
+      rgba(var(--train-rate-rgb),0.46) 52%,
+      rgba(var(--train-rate-rgb),0.00) 100%
+    );
+  filter: blur(calc(var(--u2h) * 1.5));
+}
+
+.trainRateFlight.is-bad{
+  --train-rate-rgb: var(--rgb-danger);
+}
+
+.trainRateFlight.is-bad::before{
+  background:
+    radial-gradient(
+      circle at center,
+      rgba(var(--rgb-danger),0.94) 0%,
+      rgba(var(--rgb-warn),0.44) 30%,
+      rgba(var(--rgb-danger),0.00) 74%
+    );
+}
+
+.trainRateFlight.is-bad::after{
+  background:
+    linear-gradient(
+      90deg,
+      rgba(var(--rgb-danger),0.96) 0%,
+      rgba(var(--rgb-warn),0.48) 52%,
+      rgba(var(--rgb-danger),0.00) 100%
+    );
+}
+
+.trainRateFlight.is-live{
+  animation: trainRateFlightBurst 520ms cubic-bezier(.18,.84,.22,1) both;
+}
+
+.trainRateBurst{
+  width: calc(var(--stage-h) * 0.05);
+  height: calc(var(--stage-h) * 0.05);
+  border-radius: 50%;
+  border: calc(var(--u1h) * 3) solid rgba(var(--rgb-ok),0.72);
+  opacity: 0;
+  box-shadow:
+    0 0 calc(var(--glow-ring) * 1.05) rgba(var(--rgb-ok),0.28),
+    0 0 calc(var(--glow-soft) * 0.95) rgba(var(--rgb-ok),0.42);
+}
+
+.trainRateBurst.is-bad{
+  border-color: var(--c-d-95);
+  box-shadow:
+    0 0 calc(var(--glow-ring) * 1.05) var(--c-d-25),
+    0 0 calc(var(--glow-soft) * 0.95) var(--c-warn-55);
+}
+
+.trainRateBurst.is-live{
+  animation: trainRateBurstRing 560ms ease-out both;
+}
+
+.mNo.is-train-rate-hit-good{
+  animation: trainRateHitGood 520ms cubic-bezier(.18,.84,.22,1) both;
+}
+
+.mNo.is-train-rate-hit-bad{
+  animation: trainRateHitBad 520ms cubic-bezier(.18,.84,.22,1) both;
+}
+
+@keyframes trainRateFlightBurst{
+  0%{
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.32);
+    filter: blur(0);
+  }
+  18%{
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.00);
+    filter: blur(0);
+  }
+  100%{
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.85);
+    filter: blur(calc(var(--u3h) * 1.5));
+  }
+}
+
+@keyframes trainRateBurstRing{
+  0%{
+    opacity: 0.95;
+    transform: translate(-50%, -50%) scale(0.25);
+  }
+  100%{
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(4.4);
+  }
+}
+
+@keyframes trainRateHitGood{
+  0%{
+    transform: translateY(0.04em) scale(1);
+    box-shadow:
+      0 0 0 0 rgba(var(--rgb-accent),0.00),
+      0 0 0 0 rgba(var(--rgb-accent),0.00);
+  }
+  35%{
+    transform: translateY(0.04em) scale(1.18);
+    box-shadow:
+      0 0 0 calc(var(--glow-ring) * 1.15) var(--c-a-35),
+      0 0 calc(var(--glow-soft) * 1.10) var(--c-a-65);
+  }
+  100%{
+    transform: translateY(0.04em) scale(1);
+    box-shadow:
+      0 0 0 0 rgba(var(--rgb-accent),0.00),
+      0 0 0 0 rgba(var(--rgb-accent),0.00);
+  }
+}
+
+@keyframes trainRateHitBad{
+  0%{
+    transform: translateY(0.04em) scale(1);
+    box-shadow:
+      0 0 0 0 rgba(var(--rgb-danger),0.00),
+      0 0 0 0 rgba(var(--rgb-danger),0.00);
+  }
+  35%{
+    transform: translateY(0.04em) scale(1.18);
+    box-shadow:
+      0 0 0 calc(var(--glow-ring) * 1.15) var(--c-d-25),
+      0 0 calc(var(--glow-soft) * 1.05) var(--c-warn-55);
+  }
+  100%{
+    transform: translateY(0.04em) scale(1);
+    box-shadow:
+      0 0 0 0 rgba(var(--rgb-danger),0.00),
+      0 0 0 0 rgba(var(--rgb-danger),0.00);
+  }
 }
 
 /* =========================
@@ -10396,6 +10705,7 @@ html[data-theme="light"] .hifzAyahHeaderRow.is-hifz-mastered .hifzAyahProgress::
     box-shadow 160ms ease,
     background 160ms ease;
     margin-right:calc(var(--stage-w) * 0.0125);
+  max-width:100%;
 }
 
 .hifzWriteInput{
@@ -10403,6 +10713,7 @@ html[data-theme="light"] .hifzAyahHeaderRow.is-hifz-mastered .hifzAyahProgress::
   inset:0;
   z-index:2;
   width:100%;
+  min-height:100%;
   height:100%;
   border:0;
   outline:0;
@@ -10417,9 +10728,9 @@ html[data-theme="light"] .hifzAyahHeaderRow.is-hifz-mastered .hifzAyahProgress::
   text-align:right;
   padding:
     calc(var(--stage-h) * 0.014)
-    calc(var(--stage-w) * 0.016)
+    0
     calc(var(--stage-h) * 0.032)
-    calc(var(--stage-w) * 0.012);
+    0;
 }
 
 .hifzWriteInputView{
@@ -10427,12 +10738,13 @@ html[data-theme="light"] .hifzAyahHeaderRow.is-hifz-mastered .hifzAyahProgress::
   z-index:1;
   min-height:calc(var(--stage-h) * 0.106);
   display:grid;
-  align-items:center;
+  align-items:start;
+  align-content:start;
   padding:
     calc(var(--stage-h) * 0.014)
-    calc(var(--stage-w) * 0.016)
+    0
     calc(var(--stage-h) * 0.032)
-    calc(var(--stage-w) * 0.012);
+    0;
   pointer-events:none;
 }
 
@@ -10440,9 +10752,9 @@ html[data-theme="light"] .hifzAyahHeaderRow.is-hifz-mastered .hifzAyahProgress::
 .hifzWriteInputShell[data-hifz-write-stage="8"] .hifzWriteInputView{
   padding:
     calc(var(--stage-h) * 0.007)
-    calc(var(--stage-w) * 0.0150)
+    0
     calc(var(--stage-h) * 0.016)
-    calc(var(--stage-w) * 0.006);
+    0;
 }
 .hifzWriteInputShell:focus-within{
   border-color:var(--c-a-65);
@@ -10481,7 +10793,11 @@ html[data-theme="light"] .hifzAyahHeaderRow.is-hifz-mastered .hifzAyahProgress::
 .hifzWriteTextGhost,
 .hifzWriteTextReveal{
   grid-area:1 / 1;
-  display:block;
+  display:inline-block;
+  width:auto;
+  max-width:100%;
+  align-self:start;
+  justify-self:start;
   font-family:var(--font-ar);
   font-size:calc(var(--ayah-font-ar) * 0.88);
   line-height:1.45;
@@ -10491,6 +10807,7 @@ html[data-theme="light"] .hifzAyahHeaderRow.is-hifz-mastered .hifzAyahProgress::
   overflow-wrap:normal;
   text-align:right;
   direction:rtl;
+  unicode-bidi:plaintext;
 }
 
 .hifzWriteTextGhost{

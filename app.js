@@ -9996,12 +9996,12 @@ function buildHifzBadRefsTopbarHtml(){
           <span class="hifzBadDropItemRef">${escHifzStageText(ref)}</span>
         </button>
       `).join("")
-    : `<div class="hifzBadDropEmpty">No ayahs marked as bad in ${escHifzStageText(stageMeta.title)}</div>`;
+    : `<div class="hifzBadDropEmpty">No ayahs marked as "bad" in ${escHifzStageText(stageMeta.title)}</div>`;
 
   return `
     <div class="hifzBadDrop" data-hifz-bad-drop>
       <button class="hifzBadDropBtn" type="button" data-hifz-bad-toggle aria-haspopup="dialog" aria-expanded="false" aria-label="Show ayahs marked as bad">
-        <span class="hifzBadDropBtnLabel">ayahs marked as bad</span>
+        <span class="hifzBadDropBtnLabel">ayahs marked as "bad"</span>
         <span class="hifzBadDropBtnCount">${count}</span>
         <span class="hifzBadDropBtnArrow" aria-hidden="true">▼</span>
       </button>
@@ -10153,6 +10153,29 @@ function getCurrentSurahRefsForHifz(ref){
   return (typeof getSuraRefs === "function") ? (getSuraRefs(surahNo) || []) : [];
 }
 
+function getRenderedHifzTrainRefsForActiveView(){
+  const activeView = getActiveHifzTrainMaskView();
+  if (!activeView) return [];
+
+  const allowedRefs = new Set(
+    (getHifzNavigableRefsForCurrentStage() || [])
+      .map((r) => String(r || "").trim())
+      .filter((r) => isValidHifzTrainRef(r))
+  );
+
+  const seen = new Set();
+
+  return Array.from(activeView.querySelectorAll('.mChunk[data-ref]'))
+    .map((el) => String(el.getAttribute("data-ref") || "").trim())
+    .filter((r) => {
+      if (!isValidHifzTrainRef(r)) return false;
+      if (allowedRefs.size && !allowedRefs.has(r)) return false;
+      if (seen.has(r)) return false;
+      seen.add(r);
+      return true;
+    });
+}
+
 function getNextStage5Ref(ref){
   const refs = getStage1TestRefsForCurrentSurah();
   const cur = String(ref || currentRef || "");
@@ -10190,15 +10213,43 @@ function getNextStage7Ref(ref){
 }
 
 function getNextStage8Ref(ref){
-  return getNextStage6Ref(ref);
+  const renderedRefs = getRenderedHifzTrainRefsForActiveView();
+  const fallbackRefs = getCurrentSurahRefsForHifz(ref);
+  const refs = renderedRefs.length ? renderedRefs : fallbackRefs;
+  const cur = String(ref || currentRef || "");
+  const idx = refs.indexOf(cur);
+
+  if (idx < 0) {
+    const fallbackIdx = fallbackRefs.indexOf(cur);
+    if (fallbackIdx >= 0) return fallbackRefs[fallbackIdx + 1] || fallbackRefs[0] || cur;
+    return refs[0] || cur;
+  }
+
+  return refs[idx + 1] || refs[0] || cur;
 }
 
 function getNextStage9Ref(ref){
-  return getNextStage6Ref(ref);
+  const renderedRefs = getRenderedHifzTrainRefsForActiveView();
+  const fallbackRefs = getCurrentSurahRefsForHifz(ref);
+  const refs = renderedRefs.length ? renderedRefs : fallbackRefs;
+  const cur = String(ref || currentRef || "");
+  const idx = refs.indexOf(cur);
+
+  if (idx < 0) {
+    const fallbackIdx = fallbackRefs.indexOf(cur);
+    if (fallbackIdx >= 0) return fallbackRefs[fallbackIdx + 1] || fallbackRefs[0] || cur;
+    return refs[0] || cur;
+  }
+
+  return refs[idx + 1] || refs[0] || cur;
 }
 
 function getNextStage10Ref(ref){
-  return getNextStage7Ref(ref);
+  const refs = getAllRefs();
+  const cur = String(ref || currentRef || "");
+  const idx = refs.indexOf(cur);
+  if (idx < 0) return refs[0] || cur;
+  return refs[idx + 1] || refs[0] || cur;
 }
 
 function isHifzSingleFocusStage(stage){
@@ -10289,6 +10340,7 @@ const __hifzTrainMaskRevealMap = Object.create(null);
 const __hifzTrainMaskHoverTimers = Object.create(null);
 let __hifzTrainMaskOn = false;
 let __hifzTrainMaskPendingRateRef = "";
+let __hifzTrainMaskSpaceCooldownUntil = 0;
 
 function isValidHifzTrainRef(ref){
   return /^\d+:\d+$/.test(String(ref || "").trim());
@@ -10328,6 +10380,10 @@ function isHifzTrainMaskOn(){
   return !!__hifzTrainMaskOn;
 }
 
+function isHifzTrainWriteStage(stage = hifzStageValue){
+  return ["8", "9", "10"].includes(String(stage || hifzStageValue || "1"));
+}
+
 function isHifzTrainMaskRevealed(ref){
   return !!__hifzTrainMaskRevealMap[String(ref || "").trim()];
 }
@@ -10350,14 +10406,52 @@ function getActiveHifzTrainMaskView(){
   return mViews.find((el) => el.offsetParent !== null) || null;
 }
 
-function focusHifzTrainMaskRefInView(view, ref, { updateUrl = false } = {}){
+function focusHifzTrainMaskRefInView(view, ref, { updateUrl = false, scroll = false, behavior = "auto" } = {}){
   const host = view && typeof view.querySelectorAll === "function" ? view : getActiveHifzTrainMaskView();
   const r = String(ref || "").trim();
   if (!host || !isValidHifzTrainRef(r)) return;
 
+  if (scroll && isHifzTrainWriteStage() && isHifzTrainMaskOn() && isHifzTrainMaskRatePending(r)) {
+    scroll = false;
+  }
+
   host.querySelectorAll(".mNo.is-focus").forEach((el) => el.classList.remove("is-focus"));
   const btn = host.querySelector(`.mNo[data-ref="${CSS.escape(r)}"]`);
-  if (btn) btn.classList.add("is-focus");
+  if (btn) {
+    btn.classList.add("is-focus");
+
+    if (scroll) {
+      try {
+        const hostRect = host.getBoundingClientRect();
+        const btnRect = btn.getBoundingClientRect();
+        const hostHeight = Math.max(0, Number(host.clientHeight) || Number(hostRect.height) || 0);
+        const insetY = Math.min(96, Math.max(24, hostHeight * 0.12));
+        const canMeasure = hostRect.height > 0 && btnRect.height > 0;
+
+        const alreadyVisible =
+          canMeasure &&
+          btnRect.bottom > hostRect.top &&
+          btnRect.top < hostRect.bottom;
+
+        const alreadyComfortablyVisible =
+          canMeasure &&
+          btnRect.top >= (hostRect.top + insetY) &&
+          btnRect.bottom <= (hostRect.bottom - insetY);
+
+        const autoBusy =
+          typeof window.__qrAutoScrollActiveUntil === "number" &&
+          Date.now() < window.__qrAutoScrollActiveUntil;
+
+        if (!alreadyComfortablyVisible) {
+          if (!(autoBusy && alreadyVisible)) {
+            const wantsSmooth = behavior === "smooth" && !autoBusy;
+            const scrollBehavior = wantsSmooth ? "smooth" : "instant";
+            __qrScrollElementToCenter(host, btn, { behavior: scrollBehavior });
+          }
+        }
+      } catch {}
+    }
+  }
 
   currentRef = r;
   if (updateUrl) setRefToHash(r);
@@ -10368,6 +10462,7 @@ function syncHifzTrainMaskDom(root = document){
   const firstChunk = host.querySelector('.mChunk[data-train-first="true"][data-ref]');
   const firstRef = String(firstChunk?.getAttribute("data-ref") || "");
   const stageNow = String(hifzStageValue || "1");
+  const writeStage = isHifzTrainWriteStage(stageNow);
 
   host.querySelectorAll(".mChunk[data-ref]").forEach((chunk) => {
     const ref = String(chunk.getAttribute("data-ref") || "");
@@ -10375,9 +10470,12 @@ function syncHifzTrainMaskDom(root = document){
 
     const hidden = isHifzTrainMaskOn() && !isHifzTrainMaskRevealed(ref);
     const firstHint = hidden && ref === firstRef;
+    const pendingWrite = writeStage && isHifzTrainMaskOn() && !hidden && isHifzTrainMaskRatePending(ref);
+    const pendingOpen = !pendingWrite && isHifzTrainMaskOn() && !hidden && isHifzTrainMaskRatePending(ref);
 
     chunk.classList.toggle("is-train-hidden", hidden);
     chunk.classList.toggle("is-train-first-hint", firstHint);
+    chunk.classList.toggle("is-train-writing", pendingWrite);
 
     const noBtn = chunk.querySelector(".mNo[data-ref]");
     if (!noBtn) return;
@@ -10396,9 +10494,8 @@ function syncHifzTrainMaskDom(root = document){
       noBtn.classList.add("is-hifz-progress");
     }
 
-    const pendingOpen = isHifzTrainMaskOn() && !hidden && isHifzTrainMaskRatePending(ref);
     noBtn.classList.toggle("is-train-rate-open", pendingOpen);
-    noBtn.setAttribute("data-train-state", pendingOpen ? "rating" : (hidden ? "hidden" : "normal"));
+    noBtn.setAttribute("data-train-state", pendingWrite ? "writing" : (pendingOpen ? "rating" : (hidden ? "hidden" : "normal")));
 
     if (pendingOpen) {
       if (!noBtn.querySelector(".mTrainRateSplit")) {
@@ -10411,17 +10508,33 @@ function syncHifzTrainMaskDom(root = document){
       if (noBtn.querySelector(".mTrainRateSplit")) {
         noBtn.textContent = no;
       }
-      noBtn.setAttribute("title", firstHint ? "click/press space or hover to reveal ayah" : `Play ${ref}`);
-      noBtn.setAttribute("aria-label", hidden ? `Reveal ${ref}` : `Play ${ref}`);
+      noBtn.setAttribute(
+        "title",
+        pendingWrite
+          ? "write the ayah inside this ayah box"
+          : (firstHint ? "click/press space or hover to reveal ayah" : `Play ${ref}`)
+      );
+      noBtn.setAttribute(
+        "aria-label",
+        pendingWrite
+          ? `Write ${ref} inside this ayah box`
+          : (hidden ? `Reveal ${ref}` : `Play ${ref}`)
+      );
     }
   });
 }
 
 function setHifzTrainMaskOn(on = true){
   const next = !!on;
+  const pendingRef = String(getHifzTrainMaskPendingRateRef() || "");
 
   clearAllHifzTrainMaskHoverTimers();
   setHifzTrainMaskPendingRateRef("");
+
+  if (!next && isHifzTrainWriteStage() && /^\d+:\d+$/.test(pendingRef)) {
+    resetHifzWriteStateForRef(pendingRef);
+    delete __hifzWriteResultFlashMap[pendingRef];
+  }
 
   if (next) {
     clearHifzTrainMaskReveals(); // ✅ immer wieder von vorne
@@ -10439,6 +10552,35 @@ function revealHifzTrainMaskRef(ref){
   __hifzTrainMaskRevealMap[r] = true;
   setHifzTrainMaskPendingRateRef(r);
 
+  if (isHifzTrainWriteStage()) {
+    const activeView = getActiveHifzTrainMaskView();
+    const keepScrollTop = Math.max(0, Number(activeView?.scrollTop) || 0);
+
+    resetHifzWriteStateForRef(r);
+    delete __hifzWriteResultFlashMap[r];
+    suppressNextMushafCenterScroll(320);
+    renderCurrent(r);
+
+    const restoreScroll = () => {
+      const nextView = getActiveHifzTrainMaskView();
+      if (!nextView) return false;
+      nextView.scrollTop = keepScrollTop;
+      return true;
+    };
+
+    restoreScroll();
+    requestAnimationFrame(() => {
+      restoreScroll();
+      requestAnimationFrame(() => {
+        restoreScroll();
+        setTimeout(() => {
+          restoreScroll();
+        }, 0);
+      });
+    });
+    return;
+  }
+
   syncHifzTrainMaskDom(getActiveHifzTrainMaskView() || document);
 }
 
@@ -10453,6 +10595,14 @@ function coverHifzTrainMaskRef(ref){
 
   if (isHifzTrainMaskRatePending(r)) {
     setHifzTrainMaskPendingRateRef("");
+  }
+
+  if (isHifzTrainWriteStage()) {
+    resetHifzWriteStateForRef(r);
+    delete __hifzWriteResultFlashMap[r];
+    suppressNextMushafCenterScroll(320);
+    renderCurrent(String(currentRef || r));
+    return;
   }
 
   syncHifzTrainMaskDom(getActiveHifzTrainMaskView() || document);
@@ -10476,8 +10626,10 @@ function revealCurrentOrFirstHiddenTrainAyah(view){
   const host = view && typeof view.querySelector === "function" ? view : getActiveHifzTrainMaskView();
   if (!host) return false;
 
+  const hasAnyReveal = Object.keys(__hifzTrainMaskRevealMap).length > 0;
   const safeCurrent = isValidHifzTrainRef(currentRef) ? String(currentRef) : "";
-  const currentHidden = safeCurrent
+
+  const currentHidden = (hasAnyReveal && safeCurrent)
     ? host.querySelector(`.mChunk.is-train-hidden[data-ref="${CSS.escape(safeCurrent)}"]`)
     : null;
 
@@ -10489,7 +10641,7 @@ function revealCurrentOrFirstHiddenTrainAyah(view){
   if (!isValidHifzTrainRef(r)) return false;
 
   revealHifzTrainMaskRef(r);
-  focusHifzTrainMaskRefInView(host, r, { updateUrl: true });
+  focusHifzTrainMaskRefInView(host, r, { updateUrl: true, scroll: true, behavior: "smooth" });
   return true;
 }
 
@@ -10506,9 +10658,24 @@ function rateHifzTrainMaskRef(ref, result){
   }
 
   clearHifzTrainMaskHoverTimer(r);
+
+  if (isHifzTrainWriteStage()) {
+    const st = getHifzWriteStateForRef(r);
+    st.cursor = 0;
+    st.wrongCount = 0;
+    st.flashGoodTokenIndex = -1;
+    st.flashBadChar = "";
+    st.flashBadTokenIndex = -1;
+    st.showFullErrorPreview = false;
+    st.flashTick = 0;
+    st.lockUntil = 0;
+    st.navToken = 0;
+    delete __hifzWriteResultFlashMap[r];
+  }
 }
 
 const __hifzWriteStateMap = Object.create(null);
+let __hifzLastWrongRevealRef = "";
 
 function stripArabicMarksForHifzWrite(text){
   return String(text || "")
@@ -10629,6 +10796,8 @@ function getHifzWriteStateForRef(ref){
       flashGoodTokenIndex: -1,
       flashBadChar: "",
       flashBadTokenIndex: -1,
+      lastWrongChar: "",
+      lastWrongTokenIndex: -1,
       showFullErrorPreview: false,
       flashTick: 0,
       lockUntil: 0,
@@ -10646,6 +10815,8 @@ function getHifzWriteStateForRef(ref){
     flashGoodTokenIndex: -1,
     flashBadChar: "",
     flashBadTokenIndex: -1,
+    lastWrongChar: "",
+    lastWrongTokenIndex: -1,
     showFullErrorPreview: false,
     flashTick: 0,
     lockUntil: 0,
@@ -10654,7 +10825,6 @@ function getHifzWriteStateForRef(ref){
 
   return __hifzWriteStateMap[r];
 }
-
 function clearHifzWriteFlashForRef(ref){
   const st = getHifzWriteStateForRef(ref);
   st.flashGoodTokenIndex = -1;
@@ -10704,8 +10874,11 @@ function consumeHifzWriteInput(ref, rawInput){
     state.wrongCount = Math.max(0, Number(state.wrongCount) || 0) + 1;
     state.flashBadChar = /\s/.test(unit) ? " " : unit;
     state.flashBadTokenIndex = Number(state.cursor || 0);
+    state.lastWrongChar = /\s/.test(unit) ? " " : unit;
+    state.lastWrongTokenIndex = Number(state.cursor || 0);
     state.flashGoodTokenIndex = -1;
     state.showFullErrorPreview = state.wrongCount >= 2;
+    __hifzLastWrongRevealRef = r;
 
     return {
       status: state.wrongCount >= 2 ? "bad" : "wrong",
@@ -10720,7 +10893,6 @@ function consumeHifzWriteInput(ref, rawInput){
 
   return { status: progressed ? "progress" : "noop" };
 }
-
 function getPrevStage1Ref(ref){
   const cur = String(ref || currentRef || "");
   const a = getAyah(cur);
@@ -10932,10 +11104,27 @@ function buildHifzWriteStageHtml(a, esc){
   const flashGoodTokenIndex = Number(writeState.flashGoodTokenIndex);
   const flashBadTokenIndex = Number(writeState.flashBadTokenIndex);
   const badChar = String(writeState.flashBadChar || "");
+  const persistentBadChar = String(writeState.lastWrongChar || "");
+  const persistentBadTokenIndex = Number(writeState.lastWrongTokenIndex);
+  const hasPersistentBad = !!persistentBadChar && persistentBadTokenIndex >= 0;
   const showFullErrorPreview = !!writeState.showFullErrorPreview && !!badChar;
   const resultFlash = String(__hifzWriteResultFlashMap[ref] || "");
   const safeInputId = `hifzWriteInput-${ref.replace(/:/g, "-")}`;
   const fullWriteText = String(model.displayText || "");
+
+  const buildWrongStackHtml = (token, wrongChar) => {
+    if (!token) return "";
+
+    const baseHtml = token.isSpace
+      ? `<span class="hifzWriteErrorStackBase is-space" aria-hidden="true">&nbsp;</span>`
+      : `<span class="hifzWriteErrorStackBase">${esc(token.char)}</span>`;
+
+    const overlayHtml = /\s/.test(wrongChar)
+      ? `<span class="hifzWriteTextErrorInline is-space" aria-hidden="true">&nbsp;</span>`
+      : `<span class="hifzWriteTextErrorInline">${esc(wrongChar)}</span>`;
+
+    return `<span class="hifzWriteErrorStack${token.isSpace ? " is-space" : ""}">${baseHtml}${overlayHtml}</span>`;
+  };
 
   let revealHtml = "";
 
@@ -10944,40 +11133,46 @@ function buildHifzWriteStageHtml(a, esc){
       const token = model.tokens[i];
       if (!token) continue;
 
-      if (i < visibleTokenCount) {
-        revealHtml += esc(token.char);
+      if (i === flashBadTokenIndex && badChar) {
+        revealHtml += buildWrongStackHtml(token, badChar);
         continue;
       }
 
-      if (i === flashBadTokenIndex) {
-        const baseHtml = token.isSpace
-          ? `<span class="hifzWriteErrorStackBase is-space" aria-hidden="true">&nbsp;</span>`
-          : `<span class="hifzWriteErrorStackBase">${esc(token.char)}</span>`;
-
-        const overlayHtml = /\s/.test(badChar)
-          ? `<span class="hifzWriteTextErrorInline is-space" aria-hidden="true">&nbsp;</span>`
-          : `<span class="hifzWriteTextErrorInline">${esc(badChar)}</span>`;
-
-        revealHtml += `<span class="hifzWriteErrorStack${token.isSpace ? " is-space" : ""}">${baseHtml}${overlayHtml}</span>`;
+      if (i === persistentBadTokenIndex && hasPersistentBad) {
+        revealHtml += buildWrongStackHtml(token, persistentBadChar);
         continue;
       }
 
       revealHtml += esc(token.char);
     }
   } else {
-    let revealedStableText = "";
-    let flashTokenHtml = "";
+    const revealedParts = [];
 
     for (let i = 0; i < visibleTokenCount; i += 1) {
       const token = model.tokens[i];
       if (!token) continue;
 
+      if (i === persistentBadTokenIndex && hasPersistentBad) {
+        revealedParts.push(buildWrongStackHtml(token, persistentBadChar));
+        continue;
+      }
+
       if (i === flashGoodTokenIndex) {
-        flashTokenHtml = token.isSpace
-          ? `<span class="hifzWriteTextFlash is-space" aria-hidden="true">&nbsp;</span>`
-          : `<span class="hifzWriteTextFlash">${esc(token.char)}</span>`;
-      } else {
-        revealedStableText += token.char;
+        revealedParts.push(
+          token.isSpace
+            ? `<span class="hifzWriteTextFlash is-space" aria-hidden="true">&nbsp;</span>`
+            : `<span class="hifzWriteTextFlash">${esc(token.char)}</span>`
+        );
+        continue;
+      }
+
+      revealedParts.push(esc(token.char));
+    }
+
+    if (hasPersistentBad && persistentBadTokenIndex === visibleTokenCount) {
+      const token = model.tokens[visibleTokenCount];
+      if (token) {
+        revealedParts.push(buildWrongStackHtml(token, persistentBadChar));
       }
     }
 
@@ -10986,22 +11181,15 @@ function buildHifzWriteStageHtml(a, esc){
         ? `<span class="hifzWriteCaret" aria-hidden="true"></span>`
         : "";
 
-    revealHtml = `${esc(revealedStableText)}${flashTokenHtml}${caretHtml}`;
+    revealHtml = `${revealedParts.join("")}${caretHtml}`;
   }
 
   const hintHtml =
-    visibleTokenCount === 0 && !badChar && !resultFlash
+    visibleTokenCount === 0 && !badChar && !persistentBadChar && !resultFlash
       ? `<span class="hifzWriteInputHint">Tap here and write in Arabic</span>`
       : "";
 
-  const wrongHtml =
-    badChar && !showFullErrorPreview
-      ? (
-          /\s/.test(badChar)
-            ? `<span class="hifzWriteWrongGhost is-space" aria-hidden="true">&nbsp;</span>`
-            : `<span class="hifzWriteWrongGhost">${esc(badChar)}</span>`
-        )
-      : "";
+  const wrongHtml = "";
 
   const resultBadgeHtml =
     resultFlash === "good"
@@ -11221,6 +11409,12 @@ let viewMode = "ayah";
 let currentRef = "2:255";
 // Statusbar-Play soll immer wissen in welcher Sura man gerade ist
 let currentSurahInView = 2;
+let __suppressNextMushafCenterScrollUntil = 0;
+
+function suppressNextMushafCenterScroll(delayMs = 260){
+  __suppressNextMushafCenterScrollUntil =
+    performance.now() + Math.max(0, Number(delayMs) || 0);
+}
 
 // =========================
 // Render batching (perf + keine Render-Stürme)
@@ -11246,6 +11440,14 @@ function __renderCurrentNow(ref) {
   const qv = document.querySelector(".qView");
 
   if (viewMode === "mushaf") {
+    const prevMv = document.querySelector(".mView");
+    const keepMushafScrollTop = Math.max(0, Number(prevMv?.scrollTop) || 0);
+    const preserveMushafScrollAfterRate =
+      !!prevMv &&
+      isHifzTrainMaskOn() &&
+      isHifzTrainMaskRatePending(nextRef) &&
+      !!prevMv.querySelector(`.mNo.is-train-rate-open[data-ref="${CSS.escape(nextRef)}"]`);
+
     renderMushaf(currentRef);
 
     const mv = document.querySelector(".mView");
@@ -11253,8 +11455,35 @@ function __renderCurrentNow(ref) {
     if (mv) {
       mv.style.display = "block";
 
-      // ✅ erst scrollen, wenn .mNo existiert (Chunking!)
-      scrollToMushafNoWhenReady(mv, currentRef, { updateUrl: false, scroll: true });
+      const suppressCenterScroll =
+        performance.now() < (Number(__suppressNextMushafCenterScrollUntil) || 0);
+
+      if (suppressCenterScroll) {
+        __suppressNextMushafCenterScrollUntil = 0;
+      }
+
+      if (preserveMushafScrollAfterRate) {
+        let restoreFrames = 18;
+
+        const restoreMushafScroll = () => {
+          const liveMv = document.querySelector(".mView");
+          if (!liveMv) return;
+
+          liveMv.scrollTop = keepMushafScrollTop;
+
+          if (restoreFrames-- > 0 && (Number(liveMv.scrollTop) || 0) + 4 < keepMushafScrollTop) {
+            requestAnimationFrame(restoreMushafScroll);
+          }
+        };
+
+        requestAnimationFrame(restoreMushafScroll);
+      } else {
+        // ✅ erst scrollen, wenn .mNo existiert (Chunking!)
+        scrollToMushafNoWhenReady(mv, currentRef, {
+          updateUrl: false,
+          scroll: !suppressCenterScroll
+        });
+      }
     }
   }
   else {
@@ -11729,6 +11958,11 @@ const surahSummaryMount = view.querySelector(".hifzSurahSummaryMount");
 if (trendMount) {
   trendMount.innerHTML = buildHifzStageTrendHtml();
 }
+
+const escSummary = (s) =>
+  String(s ?? "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[c]));
 
 if (surahSummaryMount) {
   surahSummaryMount.innerHTML = buildHifzSurahSummaryHtml();
@@ -12776,6 +13010,19 @@ const handleWriteRawInput = (input, rawValue) => {
     };
   };
 
+  const runHifzTrainMaskRateFlight = (btn, ref, kind = "good") => {
+    const r = String(ref || "").trim();
+    const markKind = String(kind || "").trim().toLowerCase() === "bad" ? "bad" : "good";
+
+    if (!btn || !/^\d+:\d+$/.test(r)) {
+      return { started:false, arrivalDelay:0, totalDelay:340 };
+    }
+
+    return runHifzRecallFlightFromButton(btn, r, markKind);
+  };
+
+  window.runHifzTrainMaskRateFlight = runHifzTrainMaskRateFlight;
+
   mount.addEventListener("click", (e) => {
     const writeShell = e.target.closest("[data-hifz-write-shell]");
     if (writeShell) {
@@ -13398,9 +13645,11 @@ function scrollToMushafNoWhenReady(view, ref, { updateUrl = false, scroll = true
       currentRef = targetRef;
       if (updateUrl) setRefToHash(targetRef);
 
-      // ✅ Wenn gerade Auto-Smooth-Scroll läuft: KEIN zusätzlicher scrollIntoView (sonst Zucken)
+      // ✅ Im Hifz-Trainmode nach renderCurrent KEIN Mushaf-Refocus-Scroll
       let allowScroll = !!scroll;
       try {
+        if (isHifzTrainMaskOn()) allowScroll = false;
+
         const now = Date.now();
         const autoBusy =
           typeof window.__qrAutoScrollActiveUntil === "number" &&
@@ -13408,7 +13657,22 @@ function scrollToMushafNoWhenReady(view, ref, { updateUrl = false, scroll = true
         if (autoBusy) allowScroll = false;
       } catch (e) {}
 
-      if (allowScroll) btn.scrollIntoView({ block: "center", behavior: "smooth" });
+      if (allowScroll) {
+        try {
+          const viewRect = view.getBoundingClientRect();
+          const btnRect = btn.getBoundingClientRect();
+          const topMargin = Math.max(24, viewRect.height * 0.10);
+          const bottomMargin = Math.max(24, viewRect.height * 0.10);
+
+          const fullyInsideVisibleBand =
+            btnRect.top >= (viewRect.top + topMargin) &&
+            btnRect.bottom <= (viewRect.bottom - bottomMargin);
+
+          if (!fullyInsideVisibleBand) {
+            __qrScrollElementToCenter(view, btn, { behavior: "smooth" });
+          }
+        } catch (e) {}
+      }
 
       // ✅ Jump feedback AUS (Ziel ist jetzt da)
       try { window.__setJumpBusy?.(false); } catch {}
@@ -13425,7 +13689,6 @@ function scrollToMushafNoWhenReady(view, ref, { updateUrl = false, scroll = true
 
   tick();
 }
-
 
 function focusAyahCard(view, ref, { scroll = false } = {}) {
   currentRef = ref;
@@ -13712,13 +13975,23 @@ const escTopBarAttr = (s) =>
     '"': "&quot;",
     "'": "&#39;"
   }[c]));
+const escSummary = (s) =>
+  String(s ?? "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  }[c]));
 const hifzStageInfoTitle = "Stage";
 const hifzStageInfoText = "Chooses the current hifz stage. Higher stages remove more help and expect stronger recall.";
 const hifzRepeatInfoTitle = "Right target";
 const hifzRepeatInfoText = "How many correct recalls this ayah needs before it counts as learned for the current stage.";
 const hifzRangeInfoTitle = "Range";
 const hifzRangeInfoText = "Limits the trained ayahs inside the current surah. Example: 5-10.";
-const trainModeInfoTitle = "Hides the ayahs in the active range behind a cover until you reveal them. Click, hover, or press Space to reveal. Press Ctrl + Space to cover the current ayah again. Then rate with 1 for bad or 3 for good. Press Escape to leave trainmode.";
+const trainModeInfoTitle = isHifzTrainWriteStage()
+  ? "Hides the ayahs in the active range behind a cover until you reveal them. Click, hover, or press Space to reveal. Press Ctrl + Space to cover the current ayah again. In stages 8 to 10, write the ayah directly inside the revealed ayah box. After two wrong letters the ayah is marked bad; when written correctly it is marked good. Press Escape to leave trainmode."
+  : "Hides the ayahs in the active range behind a cover until you reveal them. Click, hover, or press Space to reveal. Press Ctrl + Space to cover the current ayah again. Then rate with 1 for bad or 3 for good. Press Escape to leave trainmode.";
 
 // ✅ Mushaf: Favoriten-Markierung muss die AKTIVE Favoritenseite nutzen (actual ODER preset)
 let favSet = new Set((getActiveFavRefs?.() || []).map(String));
@@ -13853,10 +14126,439 @@ if (trendMount) {
   trendMount.innerHTML = buildHifzStageTrendHtml();
 }
 
-const escSummary = (s) =>
-  String(s ?? "").replace(/[&<>"']/g, (c) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
-  }[c]));
+function buildHifzTrainInlineWriteHtml(a, esc){
+  const ref = String(a?.ref || "");
+  const stage = String(hifzStageValue || "1");
+
+  const model = buildHifzWriteModelForRef(ref);
+  const writeState = getHifzWriteStateForRef(ref);
+  const visibleTokenCount = Math.max(0, Math.min(model.targetChars.length, Number(writeState.cursor) || 0));
+  const flashGoodTokenIndex = Number(writeState.flashGoodTokenIndex);
+  const flashBadTokenIndex = Number(writeState.flashBadTokenIndex);
+  const badChar = String(writeState.flashBadChar || "");
+  const persistentBadChar = String(writeState.lastWrongChar || "");
+  const persistentBadTokenIndex = Number(writeState.lastWrongTokenIndex);
+  const hasPersistentBad = !!persistentBadChar && persistentBadTokenIndex >= 0;
+  const showFullErrorPreview = !!writeState.showFullErrorPreview && !!badChar;
+  const resultFlash = String(__hifzWriteResultFlashMap[ref] || "");
+  const safeInputId = `hifzTrainWriteInput-${ref.replace(/:/g, "-")}`;
+  const fullWriteText = String(model.displayText || "");
+  const firstTrainRef = String(getHifzNavigableRefsForCurrentStage()?.[0] || "");
+  const showStartHint = ref === firstTrainRef;
+
+  const buildWrongStackHtml = (token, wrongChar) => {
+    if (!token) return "";
+
+    const baseHtml = token.isSpace
+      ? `<span class="hifzWriteErrorStackBase is-space" aria-hidden="true">&nbsp;</span>`
+      : `<span class="hifzWriteErrorStackBase">${esc(token.char)}</span>`;
+
+    const overlayHtml = /\s/.test(wrongChar)
+      ? `<span class="hifzWriteTextErrorInline is-space" aria-hidden="true">&nbsp;</span>`
+      : `<span class="hifzWriteTextErrorInline">${esc(wrongChar)}</span>`;
+
+    return `<span class="hifzWriteErrorStack${token.isSpace ? " is-space" : ""}">${baseHtml}${overlayHtml}</span>`;
+  };
+
+  let revealHtml = "";
+
+  if (showFullErrorPreview) {
+    for (let i = 0; i < model.tokens.length; i += 1) {
+      const token = model.tokens[i];
+      if (!token) continue;
+
+      if (i === flashBadTokenIndex && badChar) {
+        revealHtml += buildWrongStackHtml(token, badChar);
+        continue;
+      }
+
+      if (i === persistentBadTokenIndex && hasPersistentBad) {
+        revealHtml += buildWrongStackHtml(token, persistentBadChar);
+        continue;
+      }
+
+      revealHtml += esc(token.char);
+    }
+  } else {
+    const revealedParts = [];
+
+    for (let i = 0; i < visibleTokenCount; i += 1) {
+      const token = model.tokens[i];
+      if (!token) continue;
+
+      if (i === persistentBadTokenIndex && hasPersistentBad) {
+        revealedParts.push(buildWrongStackHtml(token, persistentBadChar));
+        continue;
+      }
+
+      if (i === flashGoodTokenIndex) {
+        revealedParts.push(
+          token.isSpace
+            ? `<span class="hifzWriteTextFlash is-space" aria-hidden="true">&nbsp;</span>`
+            : `<span class="hifzWriteTextFlash">${esc(token.char)}</span>`
+        );
+        continue;
+      }
+
+      revealedParts.push(esc(token.char));
+    }
+
+    if (hasPersistentBad && persistentBadTokenIndex === visibleTokenCount) {
+      const token = model.tokens[visibleTokenCount];
+      if (token) {
+        revealedParts.push(buildWrongStackHtml(token, persistentBadChar));
+      }
+    }
+
+    const caretHtml =
+      visibleTokenCount < model.tokens.length && !resultFlash
+        ? `<span class="hifzWriteCaret" aria-hidden="true"></span>`
+        : "";
+
+    revealHtml = `${revealedParts.join("")}${caretHtml}`;
+  }
+
+  const hintHtml =
+    showStartHint && visibleTokenCount === 0 && !badChar && !persistentBadChar && !resultFlash
+      ? `<span class="hifzWriteInputHint">Tap here and write in Arabic</span>`
+      : "";
+
+  const wrongHtml = "";
+
+  const resultBadgeHtml =
+    resultFlash === "good"
+      ? `<span class="hifzWriteResultBadgeInline is-good">Correct</span>`
+      : resultFlash === "bad"
+          ? `<span class="hifzWriteResultBadgeInline is-bad">Bad</span>`
+          : "";
+
+  return `
+    <span class="hifzTrainInlineWrite" data-hifz-train-inline-write="${ref}">
+      <span class="hifzWriteStageBox">
+        <span
+          class="hifzWriteInputShell${badChar ? " is-flash-bad" : ""}${resultFlash === "good" ? " is-result-good" : ""}${resultFlash === "bad" ? " is-result-bad" : ""}"
+          data-hifz-write-shell="${ref}"
+          data-hifz-write-stage="${stage}"
+          aria-label="Write ${esc(ref)} in Arabic">
+          <input
+            class="hifzWriteInput"
+            id="${safeInputId}"
+            type="text"
+            inputmode="text"
+            autocomplete="off"
+            autocapitalize="off"
+            autocorrect="off"
+            spellcheck="false"
+            dir="rtl"
+            lang="ar"
+            enterkeyhint="done"
+            data-hifz-write-input="${ref}"
+            aria-label="Write ${esc(ref)} in Arabic"
+            placeholder=" ">
+
+          <span class="hifzWriteInputView" aria-hidden="true">
+            <span class="hifzWriteTextGhost">${esc(fullWriteText)}</span>
+            <span class="hifzWriteTextReveal">${revealHtml}</span>
+            ${hintHtml}
+            ${wrongHtml}
+          </span>
+        </span>
+      </span>
+    </span>
+  `;
+}
+
+function buildHifzTrainRevealLastWrongHtml(a, esc){
+  const ref = String(a?.ref || "");
+  const state = __hifzWriteStateMap[ref];
+  const wrongChar = String(state?.lastWrongChar || "");
+  const wrongTokenIndex = Number(state?.lastWrongTokenIndex);
+
+  if (!wrongChar || wrongTokenIndex < 0) {
+    return buildWordSpans({
+      ref: a.ref,
+      surah: a.surah,
+      ayahNo: a.ayah,
+      textAr: a.textAr,
+      words: a.words
+    });
+  }
+
+  const rawDisplay = String(
+    a?.textAr ||
+    a?.textUthmani ||
+    a?.uthmani ||
+    a?.text ||
+    ""
+  ).replace(/[۞۩]/g, "");
+
+  const displayTokens = segmentArabicWriteClusters(rawDisplay);
+  let comparableIndex = 0;
+  let applied = false;
+  let html = "";
+
+  for (const token of displayTokens) {
+    const normalized = normalizeArabicWriteCompareChar(token);
+    const isComparable = !!normalized;
+    const isSpace = /\s/.test(token);
+
+    if (isComparable && comparableIndex === wrongTokenIndex) {
+      const baseHtml = isSpace
+        ? `<span class="hifzWriteErrorStackBase is-space" aria-hidden="true">&nbsp;</span>`
+        : `<span class="hifzWriteErrorStackBase">${esc(token)}</span>`;
+
+      const overlayHtml = /\s/.test(wrongChar)
+        ? `<span class="hifzWriteTextErrorInline is-space" aria-hidden="true">&nbsp;</span>`
+        : `<span class="hifzWriteTextErrorInline">${esc(wrongChar)}</span>`;
+
+      html += `<span class="hifzWriteErrorStack${isSpace ? " is-space" : ""}">${baseHtml}${overlayHtml}</span>`;
+      applied = true;
+    } else {
+      html += isSpace ? " " : esc(token);
+    }
+
+    if (isComparable) {
+      comparableIndex += 1;
+    }
+  }
+
+  if (!applied) {
+    return buildWordSpans({
+      ref: a.ref,
+      surah: a.surah,
+      ayahNo: a.ayah,
+      textAr: a.textAr,
+      words: a.words
+    });
+  }
+
+  return html;
+}
+
+const setHifzTrainWriteResultFlash = (ref, value = "") => {
+  const r = String(ref || "");
+  if (!/^\d+:\d+$/.test(r)) return;
+
+  const v = String(value || "").trim().toLowerCase();
+  if (v === "good" || v === "bad") {
+    __hifzWriteResultFlashMap[r] = v;
+    return;
+  }
+
+  delete __hifzWriteResultFlashMap[r];
+};
+
+const setHifzTrainWriteCooldown = (ref, delayMs = 0) => {
+  const r = String(ref || "");
+  if (!/^\d+:\d+$/.test(r)) return;
+
+  const st = getHifzWriteStateForRef(r);
+  const until = performance.now() + Math.max(0, Number(delayMs) || 0);
+  st.lockUntil = Math.max(Number(st.lockUntil) || 0, until);
+};
+
+const isHifzTrainWriteCoolingDown = (ref) => {
+  const r = String(ref || "");
+  if (!/^\d+:\d+$/.test(r)) return false;
+
+  const st = getHifzWriteStateForRef(r);
+  return performance.now() < (Number(st.lockUntil) || 0);
+};
+
+const focusHifzTrainWriteInputByRef = (ref) => {
+  const refStr = String(ref || "");
+  if (!/^\d+:\d+$/.test(refStr)) return null;
+
+  const activeView = getActiveHifzTrainMaskView();
+  const inputNow =
+    activeView?.querySelector(`[data-hifz-write-input="${CSS.escape(refStr)}"]`) ||
+    document.querySelector(`[data-hifz-write-input="${CSS.escape(refStr)}"]`) ||
+    null;
+
+  if (!inputNow) return null;
+
+  try {
+    inputNow.focus({ preventScroll: true });
+  } catch {
+    try { inputNow.focus(); } catch {}
+  }
+
+  try {
+    const len = String(inputNow.value || "").length;
+    inputNow.setSelectionRange(len, len);
+  } catch {}
+
+  return inputNow;
+};
+
+const rerenderHifzTrainInlineWrite = (ref, { focus = false } = {}) => {
+  const r = String(ref || "");
+  if (!/^\d+:\d+$/.test(r)) return;
+
+  const activeView = getActiveHifzTrainMaskView();
+  const textHost =
+    activeView?.querySelector(`.mChunk[data-ref="${CSS.escape(r)}"] .mText`) ||
+    null;
+  const ayahNow = getAyah(r);
+
+  if (textHost && ayahNow && isHifzTrainMaskOn() && isHifzTrainWriteStage() && isHifzTrainMaskRatePending(r)) {
+    textHost.innerHTML = buildHifzTrainInlineWriteHtml(ayahNow, escSummary);
+    try { syncHifzTrainMaskDom(activeView || document); } catch {}
+  } else {
+    renderCurrent(String(currentRef || r));
+  }
+
+  if (focus) {
+    requestAnimationFrame(() => {
+      focusHifzTrainWriteInputByRef(r);
+    });
+  }
+};
+
+const scheduleHifzTrainWriteFlashClear = (ref, delayMs = 500) => {
+  const r = String(ref || "");
+  if (!/^\d+:\d+$/.test(r)) return;
+
+  const st = getHifzWriteStateForRef(r);
+  const tick = (Number(st.flashTick) || 0) + 1;
+  st.flashTick = tick;
+
+  setTimeout(() => {
+    const cur = __hifzWriteStateMap[r];
+    if (!cur) return;
+    if (Number(cur.flashTick) !== tick) return;
+    if (String(getHifzTrainMaskPendingRateRef() || "") !== r) return;
+    if (isHifzTrainWriteCoolingDown(r)) return;
+
+    clearHifzWriteFlashForRef(r);
+    rerenderHifzTrainInlineWrite(r, { focus: true });
+  }, delayMs);
+};
+
+const handleHifzTrainWriteRawInput = (input, rawValue) => {
+  if (!input) return;
+
+  const ref = String(input.getAttribute("data-hifz-write-input") || "");
+  if (!/^\d+:\d+$/.test(ref)) {
+    input.value = "";
+    return;
+  }
+
+  if (!isHifzTrainWriteStage()) {
+    input.value = "";
+    return;
+  }
+
+  if (String(getHifzTrainMaskPendingRateRef() || "") !== ref) {
+    input.value = "";
+    return;
+  }
+
+  input.value = "";
+
+  if (isHifzTrainWriteCoolingDown(ref)) {
+    focusHifzTrainWriteInputByRef(ref);
+    return;
+  }
+
+  const safeRaw = String(rawValue || "");
+  const outcome = consumeHifzWriteInput(ref, safeRaw);
+
+  if (!outcome || outcome.status === "noop") {
+    setHifzTrainWriteResultFlash(ref, "");
+    focusHifzTrainWriteInputByRef(ref);
+    return;
+  }
+
+  if (outcome.status === "progress") {
+    setHifzTrainWriteResultFlash(ref, "");
+    rerenderHifzTrainInlineWrite(ref, { focus: true });
+    scheduleHifzTrainWriteFlashClear(ref, 500);
+    return;
+  }
+
+  if (outcome.status === "wrong") {
+    setHifzTrainWriteResultFlash(ref, "");
+    setHifzTrainWriteCooldown(ref, 650);
+    rerenderHifzTrainInlineWrite(ref, { focus: true });
+    scheduleHifzTrainWriteFlashClear(ref, 650);
+    return;
+  }
+
+  if (outcome.status === "good" || outcome.status === "bad") {
+    const mark = outcome.status === "good" ? "good" : "bad";
+    const writeShell = input.closest("[data-hifz-write-shell]");
+    const fxSource = writeShell || input;
+    const flight =
+      (typeof runHifzTrainMaskRateFlight === "function")
+        ? runHifzTrainMaskRateFlight(fxSource, ref, mark)
+        : { started:false, arrivalDelay:0, totalDelay:340 };
+
+    setHifzTrainWriteResultFlash(ref, mark);
+    rerenderHifzTrainInlineWrite(ref, { focus: false });
+
+    const commit = () => {
+      const stageNow = String(hifzStageValue || "1");
+      const persistStageResult = !(stageNow === "9" || stageNow === "10");
+
+      if (persistStageResult) {
+        rateHifzTrainMaskRef(ref, mark);
+      } else {
+        if (isHifzTrainMaskRatePending(ref)) {
+          setHifzTrainMaskPendingRateRef("");
+        }
+
+        clearHifzTrainMaskHoverTimer(ref);
+
+        if (isHifzTrainWriteStage()) {
+          resetHifzWriteStateForRef(ref);
+          delete __hifzWriteResultFlashMap[ref];
+        }
+      }
+
+      const nextRef = String(getNextHifzFocusRef(ref) || "");
+      if (isValidHifzTrainRef(nextRef)) {
+        currentRef = nextRef;
+        setRefToHash(nextRef);
+        revealHifzTrainMaskRef(nextRef);
+
+        requestAnimationFrame(() => {
+          const tryFocusNextWrite = () => {
+            const activeView = getActiveHifzTrainMaskView();
+            focusHifzTrainMaskRefInView(activeView, nextRef, { updateUrl: true, scroll: false, behavior: "auto" });
+            return !!focusHifzTrainWriteInputByRef(nextRef);
+          };
+
+          if (tryFocusNextWrite()) return;
+
+          requestAnimationFrame(() => {
+            if (tryFocusNextWrite()) return;
+
+            setTimeout(() => {
+              if (tryFocusNextWrite()) return;
+
+              setTimeout(() => {
+                tryFocusNextWrite();
+              }, 90);
+            }, 0);
+          });
+        });
+        return;
+      }
+
+      currentRef = ref;
+      setRefToHash(ref);
+      renderCurrent(String(currentRef || ref));
+    };
+
+    if (flight && flight.started) {
+      setTimeout(commit, flight.arrivalDelay);
+      return;
+    }
+
+    commit();
+  }
+};
 
 function buildHifzSurahSummaryHtmlTrain(){
   let cells = "";
@@ -14280,27 +14982,41 @@ function renderChunk() {
 `;
     }
 
-    const no = toArDigits(a.ayah ?? "");
-    const wordsHtml = buildWordSpans({
-      ref: a.ref,
-      surah: a.surah,
-      ayahNo: a.ayah,
-      textAr: a.textAr,
-      words: a.words
-    });
+const no = toArDigits(a.ayah ?? "");
+const wordsHtml = buildWordSpans({
+  ref: a.ref,
+  surah: a.surah,
+  ayahNo: a.ayah,
+  textAr: a.textAr,
+  words: a.words
+});
 
 const hifzStageNow = String(hifzStageValue || "1");
 const hifzResult = String(getHifzResultForRef(a.ref, hifzStageNow) || "");
 const hifzRatio = Number(getHifzProgressRatioForRef(a.ref, hifzStageNow) || 0);
 const hifzRing = Math.max(0, Math.min(1, hifzRatio));
 const trainMaskHidden = isHifzTrainMaskOn() && !isHifzTrainMaskRevealed(a.ref);
-const trainRateOpen = isHifzTrainMaskOn() && !trainMaskHidden && isHifzTrainMaskRatePending(a.ref);
-const trainHintTitle = trainRateOpen
-  ? "rate with 1 bad and 3 good how good you remembered it"
-  : ((i === 0 && trainMaskHidden) ? "click/press space or hover to reveal ayah" : `Play ${a.ref}`);
-const trainAriaLabel = trainRateOpen
-  ? `Rate ${a.ref} with 1 bad and 3 good`
-  : (trainMaskHidden ? `Reveal ${a.ref}` : `Play ${a.ref}`);
+const trainWritePending = isHifzTrainWriteStage(hifzStageNow) && isHifzTrainMaskOn() && !trainMaskHidden && isHifzTrainMaskRatePending(a.ref);
+const trainRateOpen = !trainWritePending && isHifzTrainMaskOn() && !trainMaskHidden && isHifzTrainMaskRatePending(a.ref);
+const trainWriteState = __hifzWriteStateMap[a.ref];
+const trainShowLastWrong =
+  !trainMaskHidden &&
+  !trainWritePending &&
+  String(__hifzLastWrongRevealRef || "") === String(a.ref) &&
+  !!String(trainWriteState?.lastWrongChar || "");
+const trainTextHtml = trainWritePending
+  ? buildHifzTrainInlineWriteHtml(a, escSummary)
+  : (trainShowLastWrong ? buildHifzTrainRevealLastWrongHtml(a, escSummary) : wordsHtml);
+const trainHintTitle = trainWritePending
+  ? "write the ayah inside this ayah box"
+  : (trainRateOpen
+      ? "rate with 1 bad and 3 good how good you remembered it"
+      : ((i === 0 && trainMaskHidden) ? "click/press space or hover to reveal ayah" : `Play ${a.ref}`));
+const trainAriaLabel = trainWritePending
+  ? `Write ${a.ref} inside this ayah box`
+  : (trainRateOpen
+      ? `Rate ${a.ref} with 1 bad and 3 good`
+      : (trainMaskHidden ? `Reveal ${a.ref}` : `Play ${a.ref}`));
 const hifzNoClass =
   hifzResult === "bad"
     ? " is-hifz-bad"
@@ -14311,13 +15027,13 @@ const hifzNoClass =
       );
 
 html += `
-  <span class="mChunk${trainMaskHidden ? " is-train-hidden" : ""}${(i === 0 && trainMaskHidden) ? " is-train-first-hint" : ""}" data-ref="${a.ref}"${i === 0 ? ` data-train-first="true"` : ""}>
-    <span class="mText" dir="rtl" lang="ar">${wordsHtml}</span>
+  <span class="mChunk${trainMaskHidden ? " is-train-hidden" : ""}${trainWritePending ? " is-train-writing" : ""}${(i === 0 && trainMaskHidden) ? " is-train-first-hint" : ""}" data-ref="${a.ref}"${i === 0 ? ` data-train-first="true"` : ""}>
+    <span class="mText" dir="rtl" lang="ar">${trainTextHtml}</span>
     <button class="mNo${hifzNoClass}${trainRateOpen ? " is-train-rate-open" : ""}${((typeof favSet !== "undefined") && favSet && favSet.has(String(a.ref))) ? " is-fav" : ""}${getNoteForRef(a.ref).trim() ? " is-note" : ""}"
 type="button"
 data-ref="${a.ref}"
 data-ayah-no="${no}"
-data-train-state="${trainRateOpen ? "rating" : (trainMaskHidden ? "hidden" : "normal")}"
+data-train-state="${trainWritePending ? "writing" : (trainRateOpen ? "rating" : (trainMaskHidden ? "hidden" : "normal"))}"
 style="--hifz-ring:${hifzRing};"
 title="${trainHintTitle}"
 aria-label="${trainAriaLabel}">${trainRateOpen ? buildHifzTrainMaskRateInnerHtml() : no}</button>
@@ -14377,16 +15093,263 @@ renderChunk();
   // ✅ erst fokussieren/scrollen wenn die Ziel-Ayah in den gerenderten Chunks existiert
   scrollToMushafNoWhenReady(view, ref, { updateUrl: false, scroll: true });
 
+    function ensureTrainRateFxLayer() {
+    let layer = document.getElementById("trainRateFxLayer");
+    if (layer) return layer;
+
+    layer = document.createElement("div");
+    layer.id = "trainRateFxLayer";
+    layer.className = "trainRateFxLayer";
+    document.body.appendChild(layer);
+    return layer;
+  }
+
+  function pruneTrainRateFxLayer(layer) {
+    if (!layer) return;
+    if (layer.querySelector(".trainRateFlight, .trainRateBurst")) return;
+    layer.remove();
+  }
+
+  function runHifzRecallFlightFromButton(btn, ref, kind = "good") {
+    const r = String(ref || "").trim();
+    const markKind = String(kind || "").trim().toLowerCase() === "bad" ? "bad" : "good";
+
+    if (!btn || !document.body.contains(btn) || !/^\d+:\d+$/.test(r)) {
+      return { started:false, arrivalDelay:0, totalDelay:820 };
+    }
+
+    const rect = btn.getBoundingClientRect();
+    if (!rect.width || !rect.height) {
+      return { started:false, arrivalDelay:0, totalDelay:820 };
+    }
+
+    const tickSelector = (typeof CSS !== "undefined" && typeof CSS.escape === "function")
+      ? `.suraTick[data-ref="${CSS.escape(r)}"]`
+      : `.suraTick[data-ref="${r.replace(/"/g, '\\"')}"]`;
+
+    const tick = document.querySelector(tickSelector);
+
+    const cx = rect.left + (rect.width / 2);
+    const cy = rect.top + (rect.height / 2);
+
+    let targetTick = null;
+    let tx = cx;
+    let ty = cy;
+
+    if (tick && tick.isConnected) {
+      const tickRect = tick.getBoundingClientRect();
+      if (tickRect.width && tickRect.height) {
+        targetTick = tick;
+        tx = tickRect.left + (tickRect.width / 2);
+        ty = tickRect.top + (tickRect.height * 0.54);
+      }
+    }
+
+    const dx = tx - cx;
+    const dy = ty - cy;
+    const dist = Math.max(1, Math.hypot(dx, dy));
+    const angle = Math.atan2(dy, dx);
+
+    const layer = ensureTrainRateFxLayer();
+
+    const beam = document.createElement("div");
+    beam.className = `trainRateFlight is-${markKind}`;
+    beam.style.left = `${cx}px`;
+    beam.style.top = `${cy}px`;
+    beam.style.setProperty("--train-rate-angle", `${angle}rad`);
+    beam.style.setProperty("--train-rate-len", `${dist}px`);
+
+    const burst = document.createElement("div");
+    burst.className = `trainRateBurst is-${markKind}`;
+    burst.style.left = `${tx}px`;
+    burst.style.top = `${ty}px`;
+
+    layer.appendChild(beam);
+    layer.appendChild(burst);
+
+    const hitClass = markKind === "bad"
+      ? "is-train-rate-hit-bad"
+      : "is-train-rate-hit-good";
+
+    const arrivalClass = markKind === "bad"
+      ? "is-bad-arrival"
+      : "is-good-arrival";
+
+    const arrivalClassMs = markKind === "bad" ? 560 : 460;
+    const arrivalDelay = targetTick ? 120 : 0;
+
+    btn.classList.remove("is-train-rate-hit-good", "is-train-rate-hit-bad");
+    void btn.offsetWidth;
+    btn.classList.add(hitClass);
+
+    const releaseHit = () => {
+      btn.classList.remove("is-train-rate-hit-good", "is-train-rate-hit-bad");
+    };
+
+    const releaseTick = () => {
+      try {
+        targetTick?.classList.remove("is-good-arrival", "is-bad-arrival");
+      } catch {}
+    };
+
+    const destroyBeam = () => {
+      beam.remove();
+      pruneTrainRateFxLayer(layer);
+    };
+
+    const destroyBurst = () => {
+      burst.remove();
+      pruneTrainRateFxLayer(layer);
+    };
+
+    const triggerArrival = () => {
+      burst.classList.add("is-live");
+
+      if (!targetTick) return;
+
+      try {
+        targetTick.classList.remove("is-good-arrival", "is-bad-arrival");
+        void targetTick.offsetWidth;
+        targetTick.classList.add(arrivalClass);
+
+        window.setTimeout(() => {
+          releaseTick();
+        }, arrivalClassMs);
+      } catch {}
+    };
+
+    requestAnimationFrame(() => {
+      beam.classList.add("is-live");
+    });
+
+    const arrivalTimer = window.setTimeout(triggerArrival, arrivalDelay);
+    const hitTimer = window.setTimeout(releaseHit, 520);
+    const killTimer = window.setTimeout(() => {
+      destroyBeam();
+      destroyBurst();
+      releaseTick();
+    }, 820);
+
+    beam.addEventListener("animationend", destroyBeam, { once: true });
+    burst.addEventListener("animationend", destroyBurst, { once: true });
+
+    return {
+      started: true,
+      arrivalDelay,
+      totalDelay: 820,
+      cleanup: () => {
+        window.clearTimeout(arrivalTimer);
+        window.clearTimeout(hitTimer);
+        window.clearTimeout(killTimer);
+        releaseHit();
+        releaseTick();
+        destroyBeam();
+        destroyBurst();
+      }
+    };
+  }
+
+  function runHifzTrainMaskRateFlight(btn, ref, kind = "good") {
+    return runHifzRecallFlightFromButton(btn, ref, kind);
+  }
+
+  window.runHifzRecallFlightFromButton = runHifzRecallFlightFromButton;
+  window.runHifzTrainMaskRateFlight = runHifzTrainMaskRateFlight;
+
   // Click handling (einmal binden)
   if (!view._mushafBound) {
     view._mushafBound = true;
+
+        if (!view._mushafTrainFxHotkeysBound) {
+      view._mushafTrainFxHotkeysBound = true;
+
+      document.addEventListener(
+        "keydown",
+        (e) => {
+          const key = String(e.key || "");
+          const code = String(e.code || "");
+
+          const isBad = key === "1" || code === "Digit1" || code === "Numpad1";
+          const isGood = key === "3" || code === "Digit3" || code === "Numpad3";
+
+          if (!isBad && !isGood) return;
+          if (e.repeat) return;
+          if (String(viewMode || "") !== "mushaf") return;
+
+          const ae = document.activeElement;
+          const typing =
+            ae &&
+            (ae.tagName === "INPUT" ||
+              ae.tagName === "TEXTAREA" ||
+              ae.isContentEditable);
+
+          if (typing) return;
+          if (!isHifzTrainMaskOn()) return;
+
+          const r = String(currentRef || "").trim();
+          if (!/^\d+:\d+$/.test(r)) return;
+          if (!isHifzTrainMaskRatePending(r)) return;
+
+          const btn = document.querySelector(`.mNo[data-ref="${CSS.escape(r)}"]`);
+          if (!btn) return;
+          if (!btn.classList.contains("is-train-rate-open")) return;
+
+          const rate = isBad ? "bad" : "good";
+          const rateSource = btn.querySelector(`.mTrainRateHalf[data-rate="${rate}"]`);
+          if (!rateSource) return;
+
+          e.preventDefault();
+          e.stopPropagation();
+          if (typeof e.stopImmediatePropagation === "function") {
+            e.stopImmediatePropagation();
+          }
+
+          const flight =
+            (typeof runHifzTrainMaskRateFlight === "function")
+              ? runHifzTrainMaskRateFlight(rateSource, r, rate)
+              : { started:false, arrivalDelay:0, totalDelay:340 };
+
+          if (flight && flight.started) {
+            setTimeout(() => {
+              rateHifzTrainMaskRef(r, rate);
+
+              if (isHifzTrainWriteStage()) {
+                renderCurrent(r);
+              } else {
+                syncHifzTrainMaskDom(getActiveHifzTrainMaskView() || document);
+              }
+            }, flight.arrivalDelay);
+            return;
+          }
+
+          rateHifzTrainMaskRef(r, rate);
+
+          if (isHifzTrainWriteStage()) {
+            renderCurrent(r);
+          } else {
+            syncHifzTrainMaskDom(getActiveHifzTrainMaskView() || document);
+          }
+        },
+        true
+      );
+    }
 
     const getHiddenTrainChunkFromTarget = (target) => {
       if (!isHifzTrainMaskOn()) return null;
       return target?.closest?.(".mChunk.is-train-hidden[data-ref]") || null;
     };
 
-    view.addEventListener("click", (e) => {
+    if (!view.__mushafHandlersBound) {
+      view.__mushafHandlersBound = true;
+
+      view.addEventListener("click", (e) => {
+        const writeShell = e.target.closest?.("[data-hifz-write-shell]");
+        if (writeShell) {
+          const ref = String(writeShell.getAttribute("data-hifz-write-shell") || "");
+          setTimeout(() => focusHifzTrainWriteInputByRef(ref), 0);
+          return;
+        }
+
       const trainModeBtn = e.target.closest?.('[data-action="toggleTrainModeMask"]');
       if (trainModeBtn) {
         e.preventDefault();
@@ -14399,6 +15362,21 @@ renderChunk();
           const firstTrainRef = String(view.querySelector('.mChunk[data-ref]')?.getAttribute('data-ref') || "");
           if (isValidHifzTrainRef(firstTrainRef)) {
             currentRef = firstTrainRef;
+            setRefToHash(firstTrainRef);
+
+            if (isHifzTrainWriteStage()) {
+              revealHifzTrainMaskRef(firstTrainRef);
+
+              requestAnimationFrame(() => {
+                const activeView = getActiveHifzTrainMaskView();
+                focusHifzTrainMaskRefInView(activeView, firstTrainRef, { updateUrl: true, scroll: false });
+                focusHifzTrainWriteInputByRef(firstTrainRef);
+              });
+              return;
+            }
+
+            renderCurrent(firstTrainRef);
+            return;
           }
         }
 
@@ -14406,22 +15384,22 @@ renderChunk();
         return;
       }
 
-      const stageTrendToggleBtn = e.target.closest?.('[data-action="toggleStageTrendCollapse"]');
-      if (stageTrendToggleBtn) {
-        e.preventDefault();
-        e.stopPropagation();
+        const stageTrendToggleBtn = e.target.closest?.('[data-action="toggleStageTrendCollapse"]');
+        if (stageTrendToggleBtn) {
+          e.preventDefault();
+          e.stopPropagation();
 
-        saveHifzStageTrendCollapsed(!loadHifzStageTrendCollapsed());
-        applyHifzStageTrendCollapsedUi(view);
-        return;
-      }
+          saveHifzStageTrendCollapsed(!loadHifzStageTrendCollapsed());
+          applyHifzStageTrendCollapsedUi(view);
+          return;
+        }
 
-      // ✅ View-Mode Toggle (Ayah/Mushaf)
-      const toggleBtn = e.target.closest?.('[data-action="toggleView"]');
-      if (toggleBtn) {
-        toggleViewMode();
-        return;
-      }
+        // ✅ View-Mode Toggle (Ayah/Mushaf)
+        const toggleBtn = e.target.closest?.('[data-action="toggleView"]');
+        if (toggleBtn) {
+          toggleViewMode();
+          return;
+        }
 
 const suraBtn = e.target.closest?.("button.suraPlayBtn");
 if (suraBtn) {
@@ -14441,28 +15419,34 @@ if (suraBtn) {
         if (!r) return;
 
         revealHifzTrainMaskRef(r);
-        setFocus(r, { updateUrl: true, scroll: false });
+        focusHifzTrainMaskRefInView(view, r, { updateUrl: true, scroll: false, behavior: "smooth" });
+
+        if (isHifzTrainWriteStage()) {
+          requestAnimationFrame(() => {
+            focusHifzTrainWriteInputByRef(r);
+          });
+        }
         return;
       }
 
-      // Word click: plays WBW deterministic audio (data-audio), fallback to data-audio2
-      const wEl = e.target.closest(".w");
-      if (wEl && !wEl.classList.contains("wMark")) {
-        e.stopPropagation();
+        // Word click: plays WBW deterministic audio (data-audio), fallback to data-audio2
+        const wEl = e.target.closest(".w");
+        if (wEl && !wEl.classList.contains("wMark")) {
+          e.stopPropagation();
 
-        const chunk = wEl.closest(".mChunk");
-        const r = chunk?.getAttribute("data-ref");
-        if (!r) return;
+          const chunk = wEl.closest(".mChunk");
+          const r = chunk?.getAttribute("data-ref");
+          if (!r) return;
 
-        // Fokus + URL
-        setFocus(r, { updateUrl: true, scroll: false });
+          // Fokus + URL
+          setFocus(r, { updateUrl: true, scroll: false });
 
-        stopSurahQueue();
-        stopVerseAudio();
+          stopSurahQueue();
+          stopVerseAudio();
 
-        playWordFromSpan(wEl);
-        return;
-      }
+          playWordFromSpan(wEl);
+          return;
+        }
 
 // Nummer-Kreis: Ayah MP3 / Favorit (Ctrl+Click)
 const noBtn = e.target.closest(".mNo");
@@ -14472,22 +15456,55 @@ if (noBtn) {
   const r = noBtn.getAttribute("data-ref");
   if (!r) return;
 
-  if (isHifzTrainMaskOn() && noBtn.classList.contains("is-train-rate-open") && isHifzTrainMaskRatePending(r)) {
-    e.preventDefault();
-    e.stopPropagation();
+if (isHifzTrainWriteStage() && isHifzTrainMaskOn() && isHifzTrainMaskRatePending(r)) {
+  e.preventDefault();
+  e.stopPropagation();
+  setTimeout(() => focusHifzTrainWriteInputByRef(r), 0);
+  return;
+}
 
-    const rateEl = e.target.closest?.(".mTrainRateHalf[data-rate]");
-    let rate = String(rateEl?.getAttribute("data-rate") || "").trim().toLowerCase();
+if (isHifzTrainMaskOn() && noBtn.classList.contains("is-train-rate-open") && isHifzTrainMaskRatePending(r)) {
+  e.preventDefault();
+  e.stopPropagation();
 
-    if (!(rate === "bad" || rate === "good")) {
-      const rect = noBtn.getBoundingClientRect();
-      rate = (e.clientX < (rect.left + (rect.width / 2))) ? "bad" : "good";
-    }
+  const rateEl = e.target.closest?.(".mTrainRateHalf[data-rate]");
+  let rate = String(rateEl?.getAttribute("data-rate") || "").trim().toLowerCase();
 
-    rateHifzTrainMaskRef(r, rate);
-    renderCurrent(r);
+  if (!(rate === "bad" || rate === "good")) {
+    const rect = noBtn.getBoundingClientRect();
+    rate = (e.clientX < (rect.left + (rect.width / 2))) ? "bad" : "good";
+  }
+
+  const flightSource = rateEl || noBtn;
+  const flight =
+    (typeof runHifzTrainMaskRateFlight === "function")
+      ? runHifzTrainMaskRateFlight(flightSource, r, rate)
+      : { started:false, arrivalDelay:0, totalDelay:340 };
+
+  if (flight && flight.started) {
+    setTimeout(() => {
+      rateHifzTrainMaskRef(r, rate);
+
+      if (isHifzTrainWriteStage()) {
+        suppressNextMushafCenterScroll(320);
+        renderCurrent(r);
+      } else {
+        syncHifzTrainMaskDom(getActiveHifzTrainMaskView() || document);
+      }
+    }, flight.arrivalDelay);
     return;
   }
+
+  rateHifzTrainMaskRef(r, rate);
+
+  if (isHifzTrainWriteStage()) {
+    suppressNextMushafCenterScroll(320);
+    renderCurrent(r);
+  } else {
+    syncHifzTrainMaskDom(getActiveHifzTrainMaskView() || document);
+  }
+  return;
+}
 
     // ✅ SHIFT + Klick => NOTES (nur im Mushaf-Mode)
   if (viewMode === "mushaf" && e.shiftKey) {
@@ -14563,12 +15580,56 @@ if (noBtn) {
   return;
 }
 
-      // Klick auf Chunk: nur Fokus + URL
-      const chunk = e.target.closest(".mChunk");
-      if (chunk) {
-        const r = chunk.getAttribute("data-ref");
-        if (!r) return;
-        setFocus(r, { updateUrl: true, scroll: false });
+        // Klick auf Chunk: nur Fokus + URL
+        const chunk = e.target.closest(".mChunk");
+        if (chunk) {
+          const r = chunk.getAttribute("data-ref");
+          if (!r) return;
+          setFocus(r, { updateUrl: true, scroll: false });
+        }
+      });
+    }
+
+    view.addEventListener("input", (e) => {
+      const input = e.target.closest("[data-hifz-write-input]");
+      if (!input) return;
+      handleHifzTrainWriteRawInput(input, String(input.value || ""));
+    });
+
+    view.addEventListener("compositionend", (e) => {
+      const input = e.target.closest("[data-hifz-write-input]");
+      if (!input) return;
+      handleHifzTrainWriteRawInput(input, String(e.data || input.value || ""));
+    });
+
+    view.addEventListener("keydown", (e) => {
+      const input = e.target.closest("[data-hifz-write-input]");
+      if (!input) return;
+
+      const ref = String(input.getAttribute("data-hifz-write-input") || "");
+
+      if ((e.key === " " || e.code === "Space") && isHifzTrainWriteStage()) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+
+      if (e.key === "Enter") {
+        e.preventDefault();
+        return;
+      }
+
+      if (isHifzTrainWriteCoolingDown(ref) && e.key !== "Tab") {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+
+      if (e.key === "Tab" && isHifzTrainWriteStage()) {
+        e.preventDefault();
+        setTimeout(() => {
+          focusHifzTrainWriteInputByRef(ref);
+        }, 0);
       }
     });
 
@@ -14611,7 +15672,6 @@ if (noBtn) {
         const isEscape = key === "Escape" || code === "Escape";
 
         if (!isSpace && !isBad && !isGood && !isEscape) return;
-        if (e.repeat) return;
 
         const ae = document.activeElement;
         const typing =
@@ -14622,6 +15682,18 @@ if (noBtn) {
 
         if (typing) return;
         if (!isHifzTrainMaskOn()) return;
+
+        if (isSpace) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (typeof e.stopImmediatePropagation === "function") {
+            e.stopImmediatePropagation();
+          }
+
+          if (e.repeat) return;
+        } else if (e.repeat) {
+          return;
+        }
 
         if (isEscape) {
           setHifzTrainMaskOn(false);
@@ -14638,7 +15710,22 @@ if (noBtn) {
         const activeView = getActiveHifzTrainMaskView();
         if (!activeView) return;
 
+        const now = (typeof performance !== "undefined" && typeof performance.now === "function")
+          ? performance.now()
+          : Date.now();
+
+        if (isSpace && isHifzTrainWriteStage()) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (typeof e.stopImmediatePropagation === "function") {
+            e.stopImmediatePropagation();
+          }
+          return;
+        }
+
         if (isSpace) {
+          if (now < __hifzTrainMaskSpaceCooldownUntil) return;
+
           if (isCtrlSpace) {
             const pendingRef = getHifzTrainMaskPendingRateRef();
             const refToCover =
@@ -14648,28 +15735,20 @@ if (noBtn) {
 
             if (!refToCover) return;
 
+            __hifzTrainMaskSpaceCooldownUntil = now + 140;
             coverHifzTrainMaskRef(refToCover);
-
-            e.preventDefault();
-            e.stopPropagation();
-            if (typeof e.stopImmediatePropagation === "function") {
-              e.stopImmediatePropagation();
-            }
             return;
           }
 
           if (!revealCurrentOrFirstHiddenTrainAyah(activeView)) return;
 
-          e.preventDefault();
-          e.stopPropagation();
-          if (typeof e.stopImmediatePropagation === "function") {
-            e.stopImmediatePropagation();
-          }
+          __hifzTrainMaskSpaceCooldownUntil = now + 140;
           return;
         }
 
         const pendingRef = getHifzTrainMaskPendingRateRef();
         if (!pendingRef) return;
+        if (isHifzTrainWriteStage()) return;
 
         e.preventDefault();
         e.stopPropagation();
@@ -14677,7 +15756,29 @@ if (noBtn) {
           e.stopImmediatePropagation();
         }
 
-        rateHifzTrainMaskRef(pendingRef, isBad ? "bad" : "good");
+        const pendingBtnSelector = (typeof CSS !== "undefined" && typeof CSS.escape === "function")
+          ? `.mNo.is-train-rate-open[data-ref="${CSS.escape(pendingRef)}"]`
+          : `.mNo.is-train-rate-open[data-ref="${pendingRef.replace(/"/g, '\\"')}"]`;
+
+        const pendingBtn =
+          activeView.querySelector(pendingBtnSelector) ||
+          document.querySelector(pendingBtnSelector);
+
+        const rate = isBad ? "bad" : "good";
+        const flight =
+          (typeof runHifzTrainMaskRateFlight === "function")
+            ? runHifzTrainMaskRateFlight(pendingBtn, pendingRef, rate)
+            : { started:false, arrivalDelay:0, totalDelay:340 };
+
+        if (flight && flight.started) {
+          setTimeout(() => {
+            rateHifzTrainMaskRef(pendingRef, rate);
+            renderCurrent(pendingRef);
+          }, flight.arrivalDelay);
+          return;
+        }
+
+        rateHifzTrainMaskRef(pendingRef, rate);
         renderCurrent(pendingRef);
       }, { capture: true });
     }
@@ -14765,6 +15866,16 @@ view.addEventListener("scroll", () => {
     // ✅ Wenn Ayah-Audio läuft: Fokus NICHT wechseln
     if (verseAudio && !verseAudio.paused && verseRefPlaying) {
       applyMushafFocus(verseRefPlaying);
+      return;
+    }
+
+    // ✅ Trainmode: passives Scrollen darf den aktiven Ref nicht auf die
+    // Mittel-Ayah der sichtbaren Range umbiegen, sonst entstehen Gegen-Scrolls.
+    if (isHifzTrainMaskOn()) {
+      const lockedTrainRef = String(getHifzTrainMaskPendingRateRef() || currentRef || "").trim();
+      if (isValidHifzTrainRef(lockedTrainRef)) {
+        applyMushafFocus(lockedTrainRef);
+      }
       return;
     }
 
