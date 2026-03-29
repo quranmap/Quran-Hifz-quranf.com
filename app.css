@@ -10740,6 +10740,9 @@ html[data-theme="light"] .hifzAyahHeaderRow.is-hifz-mastered .hifzAyahProgress::
   display:grid;
   align-items:start;
   align-content:start;
+  justify-items:end;
+  direction:rtl;
+  text-align:right;
   padding:
     calc(var(--stage-h) * 0.014)
     0
@@ -10794,10 +10797,10 @@ html[data-theme="light"] .hifzAyahHeaderRow.is-hifz-mastered .hifzAyahProgress::
 .hifzWriteTextReveal{
   grid-area:1 / 1;
   display:inline-block;
-  width:auto;
+  width:100%;
   max-width:100%;
   align-self:start;
-  justify-self:start;
+  justify-self:end;
   font-family:var(--font-ar);
   font-size:calc(var(--ayah-font-ar) * 0.88);
   line-height:1.45;

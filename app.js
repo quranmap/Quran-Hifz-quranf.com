@@ -15714,7 +15714,7 @@ if (isHifzTrainMaskOn() && noBtn.classList.contains("is-train-rate-open") && isH
           ? performance.now()
           : Date.now();
 
-        if (isSpace && isHifzTrainWriteStage()) {
+        if (isSpace && isHifzTrainWriteStage() && !isCtrlSpace) {
           e.preventDefault();
           e.stopPropagation();
           if (typeof e.stopImmediatePropagation === "function") {
@@ -15727,16 +15727,62 @@ if (isHifzTrainMaskOn() && noBtn.classList.contains("is-train-rate-open") && isH
           if (now < __hifzTrainMaskSpaceCooldownUntil) return;
 
           if (isCtrlSpace) {
+            const orderedRefs = Array.from(activeView.querySelectorAll(".mChunk[data-ref]"))
+              .map((el) => String(el.getAttribute("data-ref") || "").trim())
+              .filter((r) => isValidHifzTrainRef(r));
+
             const pendingRef = getHifzTrainMaskPendingRateRef();
-            const refToCover =
+            const currentRefStr = String(currentRef || "").trim();
+
+            let refToCover =
               (pendingRef && isHifzTrainMaskRevealed(pendingRef))
                 ? pendingRef
-                : (isHifzTrainMaskRevealed(currentRef) ? String(currentRef || "") : "");
+                : (isHifzTrainMaskRevealed(currentRefStr) ? currentRefStr : "");
+
+            if (!refToCover) {
+              const currentIdx = orderedRefs.indexOf(currentRefStr);
+              for (let i = currentIdx - 1; i >= 0; i -= 1) {
+                const candidate = orderedRefs[i];
+                if (isHifzTrainMaskRevealed(candidate)) {
+                  refToCover = candidate;
+                  break;
+                }
+              }
+
+              if (!refToCover) {
+                for (let i = orderedRefs.length - 1; i >= 0; i -= 1) {
+                  const candidate = orderedRefs[i];
+                  if (isHifzTrainMaskRevealed(candidate)) {
+                    refToCover = candidate;
+                    break;
+                  }
+                }
+              }
+            }
 
             if (!refToCover) return;
 
+            let prevRevealedRef = "";
+            const coverIdx = orderedRefs.indexOf(refToCover);
+
+            for (let i = coverIdx - 1; i >= 0; i -= 1) {
+              const candidate = orderedRefs[i];
+              if (isHifzTrainMaskRevealed(candidate)) {
+                prevRevealedRef = candidate;
+                break;
+              }
+            }
+
             __hifzTrainMaskSpaceCooldownUntil = now + 140;
             coverHifzTrainMaskRef(refToCover);
+
+            if (prevRevealedRef) {
+              focusHifzTrainMaskRefInView(activeView, prevRevealedRef, {
+                updateUrl: true,
+                scroll: false
+              });
+            }
+
             return;
           }
 
