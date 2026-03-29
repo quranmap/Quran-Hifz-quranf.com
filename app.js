@@ -10464,6 +10464,46 @@ function syncHifzTrainMaskDom(root = document){
   const stageNow = String(hifzStageValue || "1");
   const writeStage = isHifzTrainWriteStage(stageNow);
 
+  const orderedRefs = Array.from(host.querySelectorAll(".mChunk[data-ref]"))
+    .map((chunk) => String(chunk.getAttribute("data-ref") || ""))
+    .filter((ref) => isValidHifzTrainRef(ref));
+
+  const safeCurrentRef = isValidHifzTrainRef(currentRef) ? String(currentRef).trim() : "";
+  const trainPendingRef = String(getHifzTrainMaskPendingRateRef() || "");
+  let nextTargetRef = "";
+
+  if (!writeStage && isHifzTrainMaskOn() && !trainPendingRef) {
+    const hiddenRefs = orderedRefs.filter((ref) => !isHifzTrainMaskRevealed(ref));
+
+    if (hiddenRefs.length) {
+      const currentIdx = safeCurrentRef ? orderedRefs.indexOf(safeCurrentRef) : -1;
+
+      if (currentIdx >= 0) {
+        for (let i = currentIdx + 1; i < orderedRefs.length; i += 1) {
+          const candidate = orderedRefs[i];
+          if (!isHifzTrainMaskRevealed(candidate)) {
+            nextTargetRef = candidate;
+            break;
+          }
+        }
+
+        if (!nextTargetRef) {
+          for (let i = 0; i < currentIdx; i += 1) {
+            const candidate = orderedRefs[i];
+            if (!isHifzTrainMaskRevealed(candidate)) {
+              nextTargetRef = candidate;
+              break;
+            }
+          }
+        }
+      }
+
+      if (!nextTargetRef) {
+        nextTargetRef = hiddenRefs[0] || "";
+      }
+    }
+  }
+
   host.querySelectorAll(".mChunk[data-ref]").forEach((chunk) => {
     const ref = String(chunk.getAttribute("data-ref") || "");
     if (!isValidHifzTrainRef(ref)) return;
@@ -10472,10 +10512,12 @@ function syncHifzTrainMaskDom(root = document){
     const firstHint = hidden && ref === firstRef;
     const pendingWrite = writeStage && isHifzTrainMaskOn() && !hidden && isHifzTrainMaskRatePending(ref);
     const pendingOpen = !pendingWrite && isHifzTrainMaskOn() && !hidden && isHifzTrainMaskRatePending(ref);
+    const nextTarget = !writeStage && hidden && ref === nextTargetRef;
 
     chunk.classList.toggle("is-train-hidden", hidden);
     chunk.classList.toggle("is-train-first-hint", firstHint);
     chunk.classList.toggle("is-train-writing", pendingWrite);
+    chunk.classList.toggle("is-train-next-target", nextTarget);
 
     const noBtn = chunk.querySelector(".mNo[data-ref]");
     if (!noBtn) return;
@@ -10495,6 +10537,7 @@ function syncHifzTrainMaskDom(root = document){
     }
 
     noBtn.classList.toggle("is-train-rate-open", pendingOpen);
+    noBtn.classList.toggle("is-train-next-target", nextTarget);
     noBtn.setAttribute("data-train-state", pendingWrite ? "writing" : (pendingOpen ? "rating" : (hidden ? "hidden" : "normal")));
 
     if (pendingOpen) {
