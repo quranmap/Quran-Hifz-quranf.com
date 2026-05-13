@@ -76,6 +76,21 @@
       <button class="acctClose" id="acctClose" type="button" aria-label="Close" title="Close">✕</button>
     </div>
 
+    <div class="acctMetaRow">
+      <div class="acctMetaChip acctMetaChipReader">
+        <span style="display:inline-flex; align-items:center; gap:calc(var(--stage-w) * 0.0042);">
+          <span class="acctMetaLabel">Reader score</span>
+          <span
+            class="hifzHelpInfo"
+            data-hifz-help="readerscore-account"
+            data-hifz-help-title="Reader score"
+            data-hifz-help-text="Score for reading the quran fluently. visit quranl.com to take part"
+            aria-label="Score for reading the quran fluently. visit quranl.com to take part">?</span>
+        </span>
+        <span class="acctMetaValue" id="acctReaderScoreValue">0/1000000000</span>
+      </div>
+    </div>
+
     <div class="acctMetaRow acctMetaRowWrap">
       <div class="acctMetaChip acctMetaChipHifz">
         <span style="display:inline-flex; align-items:center; gap:calc(var(--stage-w) * 0.0042);">
@@ -84,8 +99,8 @@
             class="hifzHelpInfo"
             data-hifz-help="hifzscore-account"
             data-hifz-help-title="Hifzscore"
-            data-hifz-help-text="Score for memorizing the quran at https://quranf.com"
-            aria-label="Score for memorizing the quran at https://quranf.com">?</span>
+            data-hifz-help-text="Score for memorizing the quran. visit quranf.com to take part"
+            aria-label="Score for memorizing the quran. visit quranf.com to take part">?</span>
         </span>
         <span class="acctMetaValue" id="acctHifzScoreValue">0/1000000000</span>
       </div>

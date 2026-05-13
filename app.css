@@ -1296,6 +1296,25 @@ html[data-theme="light"] .suraProgTip{
   text-align: center;
 }
 
+.suraProgTip .tipLinkAccent{
+  margin-top: calc(var(--stage-h) * 0.004);
+  margin-bottom: calc(var(--stage-h) * 0.004);
+  font-family: var(--font-meta);
+  font-size: calc(var(--ayah-font-ar) * 0.56);
+  font-weight: 800;
+  line-height: 1.02;
+  letter-spacing: 0;
+  text-align: center;
+  color: rgb(var(--rgb-accent));
+  text-shadow:
+    0 0 calc(var(--u8h) * 0.55) rgba(var(--rgb-accent),0.30),
+    0 0 calc(var(--u12h) * 0.35) rgba(var(--rgb-black),0.30);
+}
+
+html[data-theme="light"] .suraProgTip .tipLinkAccent{
+  text-shadow: none;
+}
+
 /* ✅ Lightmode: NICHT transparent */
 html[data-theme="light"] .qHoverTip{
   background: #f6f8fb;
@@ -7625,6 +7644,12 @@ html[data-theme="light"] .acctSyncCard{
   box-shadow:
     inset 0 0 0 var(--u1h) rgba(var(--rgb-white),0.03),
     0 0 0 calc(var(--glow-ring) * 0.75) rgba(var(--rgb-ok),0.14);
+}
+
+.acctMetaChipReader{
+  box-shadow:
+    inset 0 0 0 var(--u1h) rgba(var(--rgb-white),0.03),
+    0 0 0 calc(var(--glow-ring) * 0.75) var(--c-a-22);
 }
 
 .acctMetaLabel{

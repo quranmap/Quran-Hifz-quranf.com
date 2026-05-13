@@ -5242,9 +5242,32 @@ if (!document.__hifzHelpTooltipBound) {
 
     if (_lastHifzHelpKey !== key) {
       _lastHifzHelpKey = key;
+
+      let textHtml = "";
+      if (text) {
+        const rawText = String(text || "");
+        const lower = rawText.toLowerCase();
+        const markers = ["quranl.com", "quranf.com"];
+        const marker = markers.find((m) => lower.includes(m)) || "";
+
+        if (marker) {
+          const idx = lower.indexOf(marker);
+          const before = rawText.slice(0, idx).trim();
+          const after = rawText.slice(idx + marker.length).trim();
+
+          textHtml = `
+            ${before ? `<div class="tipTr">${escTip(before)}</div>` : ``}
+            <div class="tipLinkAccent">${escTip(marker)}</div>
+            ${after ? `<div class="tipTr">${escTip(after)}</div>` : ``}
+          `;
+        } else {
+          textHtml = `<div class="tipTr">${escTip(rawText)}</div>`;
+        }
+      }
+
       hifzHelpTip.innerHTML = `
         <div class="tipRef">${escTip(title)}</div>
-        ${text ? `<div class="tipTr">${escTip(text)}</div>` : ``}
+        ${textHtml}
       `;
     }
 
@@ -9832,6 +9855,7 @@ function getHifzProgressRatioForRef(ref, stage){
 
 const HIFZ_SCORE_MAX = 1000000000;
 const HIFZ_SCORE_STAGE_MAX = HIFZ_SCORE_MAX / 10;
+const READER_SCORE_MAX = 1000000000;
 
 let __hifzQuranWordCountCache = null;
 const __hifzAyahWordCountCache = new Map();
@@ -9900,20 +9924,58 @@ function formatHifzScore(n){
   return new Intl.NumberFormat("en-US").format(Math.max(0, Math.round(Number(n) || 0)));
 }
 
+function getReaderScoreValue(){
+  const candidateKeys = [
+    "q_reader_score_v1",
+    "quranm_reader_score_v1",
+    "q_readerScore_v1",
+    "quranm_readerScore_v1"
+  ];
+
+  for (const key of candidateKeys) {
+    let raw = "";
+    try { raw = String(localStorage.getItem(key) || "").trim(); } catch { raw = ""; }
+    if (!raw) continue;
+
+    if (/^\d+$/.test(raw)) {
+      return Math.max(0, Math.min(READER_SCORE_MAX, Math.round(Number(raw) || 0)));
+    }
+
+    try{
+      const parsed = JSON.parse(raw);
+
+      if (Number.isFinite(Number(parsed?.score))) {
+        return Math.max(0, Math.min(READER_SCORE_MAX, Math.round(Number(parsed.score) || 0)));
+      }
+
+      if (Number.isFinite(Number(parsed?.value))) {
+        return Math.max(0, Math.min(READER_SCORE_MAX, Math.round(Number(parsed.value) || 0)));
+      }
+    }catch{}
+  }
+
+  return 0;
+}
+
 function refreshAccountHifzScoreUi(){
-  const el = document.getElementById("acctHifzScoreValue");
-  if (!el) return;
+  const elHifz = document.getElementById("acctHifzScoreValue");
+  const elReader = document.getElementById("acctReaderScoreValue");
+  if (!elHifz && !elReader) return;
 
   let inOk = false;
   try { inOk = !!__isLoggedIn?.(); } catch {}
 
   if (!inOk) {
-    el.textContent = `0/${HIFZ_SCORE_MAX}`;
+    if (elHifz) elHifz.textContent = `0/${HIFZ_SCORE_MAX}`;
+    if (elReader) elReader.textContent = `0/${READER_SCORE_MAX}`;
     return;
   }
 
-  const scoreNow = Math.max(0, Math.round(Number(getHifzScoreValue()) || 0));
-  el.textContent = `${scoreNow}/${HIFZ_SCORE_MAX}`;
+  const hifzScoreNow = Math.max(0, Math.round(Number(getHifzScoreValue()) || 0));
+  const readerScoreNow = Math.max(0, Math.round(Number(getReaderScoreValue()) || 0));
+
+  if (elHifz) elHifz.textContent = `${hifzScoreNow}/${HIFZ_SCORE_MAX}`;
+  if (elReader) elReader.textContent = `${readerScoreNow}/${READER_SCORE_MAX}`;
 }
 
 window.__refreshAccountHifzScore = refreshAccountHifzScoreUi;
@@ -17064,13 +17126,7 @@ function bindAccountMenuActions(){
     if (syncHint) syncHint.style.display = inOk ? "block" : "none";
 
     if (elHifzScore) {
-      if (!inOk) {
-        elHifzScore.textContent = `0/${hifzMax}`;
-      } else {
-        let scoreNow = 0;
-        try { scoreNow = Math.max(0, Math.round(Number(getHifzScoreValue?.() || 0))); } catch {}
-        elHifzScore.textContent = `${scoreNow}/${hifzMax}`;
-      }
+      try { window.__refreshAccountHifzScore?.(); } catch {}
     }
 
     try { window.__refreshAccountSyncUi?.(); } catch {}
